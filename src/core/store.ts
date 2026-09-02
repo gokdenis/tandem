@@ -7,21 +7,82 @@ import { seed } from './seed'
 const KEY = 'tandem.state.v2'
 
 export const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`
-export const dateKey = (t: number) => new Date(t).toISOString().slice(0, 10)
+/**
+ * The calendar day a timestamp falls on, in the student's own time zone.
+ *
+ * toISOString() would answer in UTC, which put an exam set for the 14th on the
+ * 13th for a student in Auckland, and made "today" mean tomorrow for a student
+ * in Chicago studying after seven in the evening.
+ */
+export const dateKey = (t: number) => {
+  const d = new Date(t)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/**
+ * Stored state is untrusted input: it can be from an older build, hand edited,
+ * or truncated by a browser that ran out of quota. Anything that does not have
+ * the shape the app expects is discarded in favour of a working workspace.
+ */
+function isUsable(value: unknown): value is State {
+  if (!value || typeof value !== 'object') return false
+  const s = value as Partial<State>
+  if (!Array.isArray(s.decks) || !Array.isArray(s.cards)) return false
+  if (!s.decks.every((d) => d && typeof d.id === 'string' && typeof d.name === 'string')) return false
+  return s.cards.every(
+    (c) => c && typeof c.id === 'string' && typeof c.front === 'string' && typeof c.back === 'string',
+  )
+}
 
 function load(): State {
   try {
     const raw = localStorage.getItem(KEY)
     if (raw) {
-      const parsed = JSON.parse(raw) as State
-      // A stored session pointing at deleted cards would wedge the UI.
-      if (parsed.session && !parsed.decks.some((d) => d.id === parsed.session!.deckId)) parsed.session = null
-      return { ...parsed, activity: parsed.activity ?? [], requests: parsed.requests ?? [] }
+      const parsed: unknown = JSON.parse(raw)
+      if (!isUsable(parsed)) return seed()
+      const state: State = {
+        ...parsed,
+        plan: Array.isArray(parsed.plan) ? parsed.plan : [],
+        activity: Array.isArray(parsed.activity) ? parsed.activity : [],
+        requests: Array.isArray(parsed.requests) ? parsed.requests : [],
+        focus: parsed.focus ?? null,
+        session: parsed.session ?? null,
+      }
+      // A stored session pointing at a deck that is gone would wedge the UI.
+      if (state.session && !state.decks.some((d) => d.id === state.session!.deckId)) state.session = null
+      return prune(state)
     }
   } catch {
-    /* corrupt storage – fall through to seed */
+    /* unreadable storage: fall through to a fresh workspace */
   }
   return seed()
+}
+
+/**
+ * Drops every reference to a card that no longer exists.
+ *
+ * A session queue can hold cards from any deck, because queue_cards lets an
+ * agent pull related material together. Deleting a deck used to leave those
+ * ids behind: the session stayed open, the header still counted six cards, and
+ * the screen showed none of them. Anything that removes cards routes through
+ * here so that state cannot be reached.
+ */
+function prune(state: State): State {
+  const live = new Set(state.cards.map((c) => c.id))
+
+  let session = state.session
+  if (session) {
+    const queue = session.queue.filter((id) => live.has(id))
+    if (queue.length === 0) session = null
+    else if (queue.length !== session.queue.length) {
+      session = { ...session, queue, index: Math.min(session.index, queue.length) }
+    }
+  }
+
+  const focus = state.focus?.cardId && !live.has(state.focus.cardId) ? null : state.focus
+
+  return { ...state, session, focus }
 }
 
 type Listener = () => void
@@ -121,6 +182,7 @@ class Store {
     const s = this.state.session
     if (!s) return null
     const id = s.queue[s.index]
+    if (id === undefined) return null
     return this.card(id) ?? null
   }
 
@@ -144,13 +206,14 @@ class Store {
   deleteDeck(deckId: string, actor: Actor, tool?: string) {
     const name = this.deck(deckId)?.name ?? 'deck'
     this.commit(
-      (s) => ({
-        ...s,
-        decks: s.decks.filter((d) => d.id !== deckId),
-        cards: s.cards.filter((c) => c.deckId !== deckId),
-        plan: s.plan.filter((p) => p.deckId !== deckId),
-        session: s.session?.deckId === deckId ? null : s.session,
-      }),
+      (s) =>
+        prune({
+          ...s,
+          decks: s.decks.filter((d) => d.id !== deckId),
+          cards: s.cards.filter((c) => c.deckId !== deckId),
+          plan: s.plan.filter((p) => p.deckId !== deckId),
+          session: s.session?.deckId === deckId ? null : s.session,
+        }),
       actor,
       `deleted deck “${name}”`,
       tool,
@@ -168,7 +231,7 @@ class Store {
 
   addCards(
     deckId: string,
-    incoming: Array<{ front: string; back: string; topic?: string; note?: string }>,
+    incoming: Array<{ front: string; back: string; topic?: string | undefined; note?: string | undefined }>,
     actor: Actor,
     tool?: string,
   ): Card[] {
@@ -211,11 +274,7 @@ class Store {
 
   deleteCard(cardId: string, actor: Actor, tool?: string) {
     this.commit(
-      (s) => ({
-        ...s,
-        cards: s.cards.filter((c) => c.id !== cardId),
-        session: s.session ? { ...s.session, queue: s.session.queue.filter((id) => id !== cardId) } : s.session,
-      }),
+      (s) => prune({ ...s, cards: s.cards.filter((c) => c.id !== cardId) }),
       actor,
       'deleted a card',
       tool,
