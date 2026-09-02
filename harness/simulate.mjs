@@ -10,8 +10,9 @@ const shots = process.env.SHOTS === '1'
 const shim = () => {
   const registry = new Map()
   const api = {
-    async registerTool(tool) {
+    async registerTool(tool, options) {
       registry.set(tool.name, tool)
+      options?.signal?.addEventListener('abort', () => registry.delete(tool.name))
       return true
     },
     async getTools() {
@@ -51,8 +52,9 @@ const call = async (name, args) => {
 }
 
 console.log('\n=== registration ===')
-const names = await page.evaluate(() => window.__mcp.names())
-console.log(`  ${names.length} tools registered`)
+let names = await page.evaluate(() => window.__mcp.names())
+console.log(`  idle state: ${names.length} tools registered`)
+console.log(`  session controls present while idle: ${names.filter((n) => ['reveal_answer','grade_current_card','queue_cards','end_session'].includes(n)).join(', ') || 'none (correct)'}`)
 
 console.log('\n=== schema sanity ===')
 const schemas = await page.evaluate(() => window.__mcp.schemas())
@@ -76,6 +78,9 @@ console.log('\n=== agent walkthrough ===')
 await call('list_decks')
 await call('get_weak_topics', { deck: 'Operating Systems' })
 await call('start_session', { deck: 'Operating Systems', mode: 'weak', limit: 6 })
+await page.waitForTimeout(500)
+names = await page.evaluate(() => window.__mcp.names())
+console.log(`  -> after start_session: ${names.length} tools registered, start_session present: ${names.includes('start_session')}`)
 const state = await call('get_study_state')
 const cardId = state.structured?.currentCard?.id
 await call('reveal_answer')
@@ -90,7 +95,11 @@ await call('add_cards', {
 await call('set_exam_date', { deck: 'Operating Systems', date: '2026-09-14' })
 await call('plan_revision', { deck: 'Operating Systems', minutesPerDay: 45 })
 await call('queue_cards', { cardIds: state.structured?.currentCard ? [state.structured.currentCard.id] : [] })
+await call('get_note_impact', { deck: 'Operating Systems' })
 await call('end_session')
+await page.waitForTimeout(500)
+names = await page.evaluate(() => window.__mcp.names())
+console.log(`  -> after end_session: ${names.length} tools registered, grade_current_card present: ${names.includes('grade_current_card')}`)
 
 console.log('\n=== error paths ===')
 await call('get_deck', { deck: 'Quantum Basketry' })
