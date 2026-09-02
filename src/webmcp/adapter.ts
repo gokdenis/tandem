@@ -51,6 +51,8 @@ export class ToolRegistry {
   /** Serialises syncs so two overlapping calls cannot register the same tool twice. */
   private queue: Promise<void> = Promise.resolve()
   private wanted: ToolDescriptor[] | null = null
+  /** Set once if the host turned out not to accept annotations. */
+  private degraded = false
 
   get names(): string[] {
     return [...this.live.keys()]
@@ -107,13 +109,28 @@ export class ToolRegistry {
     // and register in one round rather than twenty sequential ones.
     const pending = tools
       .filter((tool) => !this.live.has(tool.name))
-      .map((tool) => {
+      .map(async (tool) => {
         const controller = new AbortController()
         this.live.set(tool.name, controller)
-        return Promise.resolve(ctx.registerTool!(tool, { signal: controller.signal })).catch((err) => {
-          console.error(`[webmcp] failed to register tool "${tool.name}"`, err)
-          this.live.delete(tool.name)
-        })
+        try {
+          await ctx.registerTool!(tool, { signal: controller.signal })
+        } catch (err) {
+          // The specification's descriptor is name, description, inputSchema and
+          // execute. Behaviour annotations are standard MCP and worth sending,
+          // but a host that validates strictly would reject the whole tool over
+          // a field it does not know. Losing an annotation beats losing a tool.
+          const { annotations: _dropped, ...core } = tool
+          try {
+            await ctx.registerTool!(core as ToolDescriptor, { signal: controller.signal })
+            if (!this.degraded) {
+              this.degraded = true
+              console.warn('[webmcp] host rejected tool annotations; registering without them')
+            }
+          } catch (retryErr) {
+            console.error(`[webmcp] failed to register tool "${tool.name}"`, retryErr ?? err)
+            this.live.delete(tool.name)
+          }
+        }
       })
 
     await Promise.all(pending)
