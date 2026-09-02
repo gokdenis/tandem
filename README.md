@@ -98,7 +98,7 @@ Click **Watch a replay** on the dashboard. It runs a scripted walkthrough throug
 ## Tests
 
 ```bash
-npm test      # 32 tests: scheduler, note impact, tool surface, dates, edges, invariants
+npm test      # 36 tests: scheduler, note impact, tool surface, dates, edges, invariants
 npm run check # lint, typecheck, tests and a production build
 npm run a11y  # axe-core over the dashboard, a session and a permission request
 ```
@@ -117,6 +117,29 @@ TypeScript was not running in strict mode, which is how most of these survived. 
 - **Stored state was trusted.** Anything that parsed as JSON was loaded, so a truncated or hand edited entry could take the app down. It is now shape checked and discarded if it does not match.
 
 Time was also being read during render, which froze every relative timestamp until an unrelated change and left a tab open past midnight still calling yesterday today.
+
+### What measuring turned up
+
+A deck of two thousand cards, driven through the tools:
+
+| | Before | After |
+| --- | --- | --- |
+| Expanding the card list | 1564 ms | 116 ms per page |
+| `get_deck` response | 120 KB of text | 5.5 KB, with a count of what was omitted |
+| Starting a session | 211 ms | 22 ms |
+| Grading one card | 175 ms | 32 ms |
+| DOM nodes | 16,377 | 267 |
+
+The list now pages and filters instead of rendering every row. `get_deck` returns sixty cards by default and tells the agent how many it left out and how to narrow, rather than spending its context. Persistence is coalesced and flushed on `pagehide` and `visibilitychange`, because serialising the workspace on every keystroke was most of the per-action cost.
+
+Four more defects came out of the same pass:
+
+- **Two overlapping registry syncs registered every tool twice.** Registration is asynchronous, so both saw an empty registry. Syncs are serialised now, with the latest requested surface winning, and a host with realistic latency driven through thirty rapid session cycles produces no duplicates.
+- **`add_cards` silently dropped everything past its limit** and reported success. It now says how many it did not add and asks for another call.
+- **A tool that threw handed the browser an exception** rather than an answer. Every executor is wrapped so an unexpected failure comes back in the shape an agent can act on.
+- **Two tabs overwrote each other in silence.** The tab that did not write now says so and offers to load the newer workspace.
+
+Text going into storage is bounded, and a browser that refuses to save says so instead of pretending everything is fine.
 
 ## Testing without an agent
 
