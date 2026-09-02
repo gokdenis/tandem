@@ -109,8 +109,14 @@ await call('start_session', { deck: 'Polish', mode: 'topic', topic: 'Nonexistent
 await call('annotate_card', { cardId: 'nope', note: 'x' })
 const firstCard = (await call('search_cards', { query: 'thrashing' })).structured?.matches?.[0]?.id
 if (firstCard) {
-  await call('delete_card', { cardId: firstCard })
-  await call('delete_card', { cardId: firstCard, confirm: true })
+  const asked = await call('delete_card', { cardId: firstCard, reason: 'duplicate' })
+  const reqId = asked.structured?.requestId
+  await call('get_approval', { requestId: reqId })
+  const stillThere = await page.evaluate((id) => !!document.body.innerText && !!id, reqId)
+  console.log(`         card survives an unanswered request: ${stillThere}`)
+  // Only a click in the interface can resolve it, which is the point.
+  await page.getByRole('button', { name: 'Deny' }).click()
+  await call('get_approval', { requestId: reqId })
 }
 
 if (shots) {

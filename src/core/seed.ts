@@ -137,5 +137,6 @@ export function seed(): State {
     plan: [],
     activity: [],
     focus: null,
+    requests: [],
   }
 }

@@ -15,6 +15,7 @@ import { StudyView } from './components/StudyView'
 import { ActivityFeed } from './components/ActivityFeed'
 import { ToolsPanel } from './components/ToolsPanel'
 import { ReplayBar } from './components/ReplayBar'
+import { ApprovalPrompt } from './components/ApprovalPrompt'
 import { REPLAY_STEPS, runReplay } from './replay/script'
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
   }
 
   const hasSession = state.session !== null
+  const pending = state.requests.find((r) => r.status === 'pending')
 
   useEffect(() => {
     let cancelled = false
@@ -101,6 +103,12 @@ export default function App() {
       <Header status={status} exposed={activeTools(hasSession).length} registered={registered} />
       <div className="body">
         <main className="main">
+          {pending ? (
+            <>
+              <ApprovalPrompt request={pending} />
+              <div style={{ height: 16 }} />
+            </>
+          ) : null}
           {replayStep !== null ? (
             <>
               <ReplayBar index={replayStep} step={REPLAY_STEPS[replayStep]} onStop={stopReplay} />

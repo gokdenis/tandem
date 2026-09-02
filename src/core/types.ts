@@ -64,6 +64,22 @@ export type Activity = {
 
 export type Focus = { cardId?: string; topic?: string; reason?: string } | null
 
+/**
+ * A destructive action an agent has asked for and the student has not answered
+ * yet. The agent cannot resolve one of these: only a click in the interface can.
+ */
+export type ApprovalRequest = {
+  id: string
+  action: 'delete_card'
+  targetId: string
+  /** What the student is being asked, in their terms. */
+  summary: string
+  /** What is irreversibly lost if they allow it. */
+  cost: string
+  askedAt: number
+  status: 'pending' | 'allowed' | 'denied'
+}
+
 export type State = {
   decks: Deck[]
   cards: Card[]
@@ -71,4 +87,5 @@ export type State = {
   plan: PlanBlock[]
   activity: Activity[]
   focus: Focus
+  requests: ApprovalRequest[]
 }

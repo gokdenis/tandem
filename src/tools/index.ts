@@ -184,7 +184,8 @@ export const tools: ToolDescriptor[] = [
   /* ---------------------------------------------------------------- writing */
   {
     name: 'create_deck',
-    description: 'Create a new empty deck. Follow it with add_cards.',
+    description:
+      'Create a new empty deck, then fill it with add_cards. Use this when the student mentions a subject that is not already in list_decks, rather than dropping unrelated cards into an existing deck.',
     inputSchema: obj({ name: str('Deck name.'), description: str('One line about what it covers.') }, ['name']),
     execute: ({ name, description }) => {
       const deck = store.createDeck(String(name), String(description ?? ''), AGENT, 'create_deck')
@@ -269,24 +270,41 @@ export const tools: ToolDescriptor[] = [
   {
     name: 'delete_card',
     description:
-      'Permanently remove a card, for example a duplicate or one the student says is wrong. This cannot be undone and the card takes its review history with it, so it requires confirm: true. Ask the student in your own words first and only pass confirm once they have actually said yes.',
-    inputSchema: obj(
-      {
-        cardId: str('Card id.'),
-        confirm: { type: 'boolean', description: 'Must be true. Set it only after the student has agreed to the deletion.' },
-      },
-      ['cardId', 'confirm'],
-    ),
-    execute: ({ cardId, confirm }) => {
+      'Ask the student for permission to permanently remove a card, for example a duplicate or one they say is wrong. This does not delete anything by itself. It puts the request on the student’s screen, where they press Allow or Deny; a deletion can only happen because they clicked, never because you asserted they agreed. Explain in chat why you are asking, then poll get_approval for the answer.',
+    inputSchema: obj({ cardId: str('Card id.'), reason: str('Why this card should go. Shown to the student.') }, ['cardId']),
+    execute: ({ cardId, reason }) => {
       const card = store.card(String(cardId))
       if (!card) return fail(`No card with id ${cardId}.`)
-      if (confirm !== true) {
-        return fail(
-          `Not deleted. "${card.front}" has ${card.history.length} recorded reviews that would be lost. Ask the student to confirm, then call again with confirm: true.`,
-        )
-      }
-      store.deleteCard(card.id, AGENT, 'delete_card')
-      return ok(`Deleted “${card.front}”.`)
+      if (store.pendingRequest) return fail('The student already has an unanswered request on screen. Wait for that one.')
+      const req = store.askApproval(
+        'delete_card',
+        card.id,
+        `Delete "${card.front}"${reason ? ` (${String(reason)})` : ''}`,
+        `${card.history.length} recorded review${card.history.length === 1 ? '' : 's'} and its scheduling state`,
+        'delete_card',
+      )
+      return ok(
+        `Asked the student on screen. Nothing has been deleted. Tell them why you are asking, then call get_approval with requestId "${req.id}".`,
+        { requestId: req.id, status: 'pending' },
+      )
+    },
+  },
+
+  {
+    name: 'get_approval',
+    description:
+      'Check what the student answered to a permission request. Returns pending until they press a button. Never assume the answer: a pending request means the card is still there.',
+    inputSchema: obj({ requestId: str('The id returned by the tool that asked.') }, ['requestId']),
+    execute: ({ requestId }) => {
+      const req = store.request(String(requestId))
+      if (!req) return fail(`No request with id ${requestId}.`)
+      const text =
+        req.status === 'pending'
+          ? `Still waiting. The student has not answered "${req.summary}" yet.`
+          : req.status === 'allowed'
+            ? `The student allowed it, and it has been carried out.`
+            : `The student denied it. Nothing was changed. Do not ask again unless they bring it up.`
+      return ok(text, { status: req.status, summary: req.summary })
     },
   },
 
@@ -572,7 +590,10 @@ const READ_ONLY = new Set([
   'get_study_state',
   'get_weak_topics',
   'get_note_impact',
+  'get_approval',
 ])
+// delete_card only ever asks. The deletion itself is carried out by the
+// student's click, so the hint marks the intent rather than the effect.
 const DESTRUCTIVE = new Set(['delete_card'])
 
 // Declared once over the finished list so a new tool cannot quietly ship

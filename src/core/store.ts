@@ -1,4 +1,4 @@
-import type { Activity, Actor, Card, Deck, Focus, Grade, PlanBlock, Session, State } from './types'
+import type { Activity, Actor, ApprovalRequest, Card, Deck, Focus, Grade, PlanBlock, Session, State } from './types'
 import { DAY, difficulty, isDue, noteImpact, schedule } from './srs'
 import { seed } from './seed'
 
@@ -16,7 +16,7 @@ function load(): State {
       const parsed = JSON.parse(raw) as State
       // A stored session pointing at deleted cards would wedge the UI.
       if (parsed.session && !parsed.decks.some((d) => d.id === parsed.session!.deckId)) parsed.session = null
-      return { ...parsed, activity: parsed.activity ?? [] }
+      return { ...parsed, activity: parsed.activity ?? [], requests: parsed.requests ?? [] }
     }
   } catch {
     /* corrupt storage – fall through to seed */
@@ -306,6 +306,53 @@ class Store {
       'ticked off a study block',
       tool,
     )
+  }
+
+  /* -------------------------------------------------------------- approvals */
+
+  request(id: string) {
+    return this.state.requests.find((r) => r.id === id)
+  }
+
+  get pendingRequest(): ApprovalRequest | undefined {
+    return this.state.requests.find((r) => r.status === 'pending')
+  }
+
+  /**
+   * An agent asking is not the same as a student agreeing. This records the
+   * question; only resolveRequest, wired to a button, can answer it.
+   */
+  askApproval(action: ApprovalRequest['action'], targetId: string, summary: string, cost: string, tool?: string): ApprovalRequest {
+    const req: ApprovalRequest = {
+      id: uid('req'),
+      action,
+      targetId,
+      summary,
+      cost,
+      askedAt: Date.now(),
+      status: 'pending',
+    }
+    this.commit(
+      (s) => ({ ...s, requests: [req, ...s.requests].slice(0, 20) }),
+      'agent',
+      `asked for permission: ${summary}`,
+      tool,
+    )
+    return req
+  }
+
+  resolveRequest(id: string, allowed: boolean) {
+    const req = this.request(id)
+    if (!req || req.status !== 'pending') return
+    const status = allowed ? 'allowed' : 'denied'
+    this.commit(
+      (s) => ({ ...s, requests: s.requests.map((r) => (r.id === id ? { ...r, status } : r)) }),
+      'human',
+      `${allowed ? 'allowed' : 'denied'} the request: ${req.summary}`,
+    )
+    if (allowed && req.action === 'delete_card') {
+      this.deleteCard(req.targetId, 'human')
+    }
   }
 
   setFocus(focus: Focus, actor: Actor, tool?: string) {

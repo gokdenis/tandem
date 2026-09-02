@@ -418,3 +418,35 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
 /* Wide content must scroll inside itself, never push the page sideways. */
 .tools, .card-list { max-width: 100%; }
 .card-row .q, .card-row .a { overflow-wrap: anywhere; }
+
+/* ---------------------------------------------------------------- approval */
+.approval {
+  border: 1px solid rgba(251,191,36,.4);
+  background: linear-gradient(180deg, rgba(251,191,36,.10), rgba(251,191,36,.03));
+  border-radius: var(--r-lg);
+  padding: 16px 18px;
+}
+.approval-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.approval-tag {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  background: rgba(251,191,36,.18); color: #fbd88a;
+  padding: 3px 8px; border-radius: 5px;
+}
+.approval-summary { font-size: 16px; margin: 12px 0 4px; color: var(--text); }
+
+/* ----------------------------------------------------------- tool inspector */
+button.tool { cursor: pointer; font-family: var(--mono); }
+.tool.open { color: var(--text); border-color: #3d4759; background: #1b202a; }
+
+.tool-detail {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+.tool-name { font-family: var(--mono); font-size: 12.5px; color: var(--agent); }
+.tool-desc { font-size: 13px; color: #cbd2e0; margin: 10px 0 0; line-height: 1.55; }
+.schema {
+  margin: 0; padding: 11px 12px; overflow-x: auto;
+  background: #0d1015; border: 1px solid var(--line-soft); border-radius: var(--r-sm);
+  font-family: var(--mono); font-size: 11px; line-height: 1.5; color: #a7b0c2;
+  max-height: 260px; overflow-y: auto;
+}
