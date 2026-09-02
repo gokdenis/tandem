@@ -2,7 +2,9 @@ import type { Activity, Actor, Card, Deck, Focus, Grade, PlanBlock, Session, Sta
 import { DAY, difficulty, isDue, noteImpact, schedule } from './srs'
 import { seed } from './seed'
 
-const KEY = 'tandem.state.v1'
+// Bumped when the stored shape changes, so a returning visitor is not left on
+// an old snapshot that predates fields the app now reads.
+const KEY = 'tandem.state.v2'
 
 export const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`
 export const dateKey = (t: number) => new Date(t).toISOString().slice(0, 10)

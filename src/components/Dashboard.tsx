@@ -45,6 +45,9 @@ export function Dashboard() {
         <div className="panel-head">
           <h2>Decks</h2>
           <div className="spacer" />
+          <button className="btn sm ghost" onClick={() => store.reset('human')} title="Restore the sample decks and clear your changes">
+            Reset workspace
+          </button>
           <button className="btn sm" onClick={() => setCreating(!creating)}>
             {creating ? 'Cancel' : 'New deck'}
           </button>
