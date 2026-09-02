@@ -6,8 +6,10 @@
  */
 import { readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
+import { startTargetServer } from './local-server.mjs'
 
-const URL = process.env.URL || 'http://localhost:4173/'
+const target = await startTargetServer()
+const URL = target.url
 const axe = readFileSync('node_modules/axe-core/axe.min.js', 'utf8')
 
 const shim = () => {
@@ -36,6 +38,8 @@ await page.waitForTimeout(600)
 
 const states = [
   ['dashboard', async () => {
+    const keepButton = page.getByRole('button', { name: 'Keep it' })
+    if (await keepButton.count()) await keepButton.click()
     await page.evaluate(() => window.__mcp.call('end_session'))
   }],
   ['study session', async () => {
@@ -74,4 +78,5 @@ for (const theme of themes) {
 
 console.log(`\ntotal violations: ${total}`)
 await browser.close()
-process.exit(total === 0 ? 0 : 1)
+await target.close()
+process.exitCode = total === 0 ? 0 : 1

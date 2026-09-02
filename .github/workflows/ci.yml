@@ -30,11 +30,11 @@ jobs:
       - name: Build
         run: npx vite build
 
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
       - name: Agent simulation
-        run: |
-          npm i -D playwright
-          npx playwright install --with-deps chromium
-          npx vite preview --port 4173 &
-          npx wait-on http://localhost:4173 || sleep 5
-          URL=http://localhost:4173/ node harness/simulate.mjs
-          URL=http://localhost:4173/ node harness/a11y.mjs
+        run: npm run simulate
+
+      - name: Accessibility audit
+        run: npm run a11y

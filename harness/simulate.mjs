@@ -3,8 +3,10 @@
  * exactly the way an agent would, through the tools only, never the UI.
  */
 import { chromium } from 'playwright'
+import { startTargetServer } from './local-server.mjs'
 
-const URL = process.env.URL || 'http://localhost:4173/'
+const target = await startTargetServer()
+const URL = target.url
 const shots = process.env.SHOTS === '1'
 
 const shim = () => {
@@ -65,6 +67,7 @@ for (const s of schemas) {
   if (!s.description || s.description.length < 40) problems.push('description too thin')
   if (!s.inputSchema || s.inputSchema.type !== 'object') problems.push('inputSchema not an object schema')
   if (!s.annotations || typeof s.annotations.readOnlyHint !== 'boolean') problems.push('missing behaviour annotations')
+  if (!s.annotations || typeof s.annotations.untrustedContentHint !== 'boolean') problems.push('missing untrusted-content annotation')
   for (const req of s.inputSchema?.required ?? []) {
     if (!s.inputSchema.properties?.[req]) problems.push(`required "${req}" missing from properties`)
   }
@@ -112,7 +115,8 @@ if (firstCard) {
   const asked = await call('delete_card', { cardId: firstCard, reason: 'duplicate' })
   const reqId = asked.structured?.requestId
   await call('get_approval', { requestId: reqId })
-  const stillThere = await page.evaluate((id) => !!document.body.innerText && !!id, reqId)
+  const afterRequest = await call('search_cards', { query: 'thrashing' })
+  const stillThere = afterRequest.structured?.matches?.some((card) => card.id === firstCard) ?? false
   console.log(`         card survives an unanswered request: ${stillThere}`)
   // Only a click in the interface can resolve it, which is the point.
   await page.getByRole('button', { name: 'Keep it' }).click()
@@ -128,4 +132,5 @@ if (shots) {
 }
 
 await browser.close()
+await target.close()
 console.log('\ndone.\n')
