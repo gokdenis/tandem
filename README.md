@@ -138,6 +138,8 @@ Tool executors read live state at call time instead of closing over a snapshot, 
 - **Errors are recoverable.** A bad deck name returns the list of real deck names; a bad topic returns the deck's topics. The agent can fix itself in one turn.
 - **Deck arguments accept names, not just ids**, so the agent can pass through what the student actually said.
 - **Every tool returns both prose and `structuredContent`**, so an agent gets a readable answer and a parseable one.
+- **One primary action per screen.** The dashboard leads with what is due and a single green button; everything else is secondary or quiet. The study card is the only thing on its screen with real visual weight.
+- **Contrast is measured, not eyeballed.** Every text colour clears WCAG AA against every panel background it is used on; the original muted grey sat at 3.4:1 and was raised.
 
 ## Stack
 
