@@ -139,7 +139,7 @@ describe('relative time', () => {
   it('never shows a negative age for something that just happened', async () => {
     // The clock the feed renders against is sampled on an interval, so an
     // entry can be newer than the last sample.
-    const { ago } = await import('../../components/ActivityFeed')
+    const { ago } = await import('../relativeTime')
     const now = Date.now()
     expect(ago(now + 2000, now)).toBe('just now')
     expect(ago(now, now)).toBe('just now')
