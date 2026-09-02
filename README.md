@@ -98,9 +98,9 @@ Click **Watch a replay** on the dashboard. It runs a scripted walkthrough throug
 ## Tests
 
 ```bash
-npm test      # 46 tests: scheduler, note impact, tool surface, dates, edges, invariants, evals
+npm test      # 47 tests: scheduler, note impact, tool surface, dates, edges, invariants, evals
 npm run check # lint, typecheck, tests and a production build
-npm run a11y  # axe-core over the dashboard, a session and a permission request
+npm run a11y  # axe-core over both themes, on three application states
 ```
 
 The tool-layer tests assert the things a description can only promise: that failures come back with the real deck and topic names, that session controls are withdrawn when no card is on screen, that every tool declares behaviour hints, and that a delete request leaves the card in place until a human answers it.
@@ -194,7 +194,8 @@ They are not decoration. `src/tools/__tests__/evals.test.ts` derives every one o
 - **Every tool returns both prose and `structuredContent`**, so an agent gets a readable answer and a parseable one.
 - **One primary action per screen.** The dashboard leads with what is due and a single green button; everything else is secondary or quiet. The study card is the only thing on its screen with real visual weight.
 - **Contrast is measured, not eyeballed.** Every text and background pair in use clears WCAG AA. The audit found two real failures: the muted grey used for hints sat at 3.4:1, and withdrawn tool chips were faded to roughly 2:1. Both were fixed rather than waived, and `npm run a11y` fails the build if a new one appears.
-- **The stylesheet is a system, not a pile.** [docs/design-system.md](./docs/design-system.md) has the tokens and component variants. Nothing outside the token block declares a raw colour, size or radius.
+- **The stylesheet is a system, not a pile.** [docs/design-system.md](./docs/design-system.md) has the tokens and component variants. Nothing outside the token block declares a raw colour, size or radius, which is what made a second theme a matter of redefining that block rather than a rewrite.
+- **Two themes, measured the same way.** Light follows the system setting unless the student picks one, and their choice is stored under its own key so restoring the sample decks does not change how the page looks. The light accents are darker than their dark theme counterparts because the dark green reads at 1.7:1 on white; every pair in both themes clears AA, and `npm run a11y` scans both.
 
 ## Stack
 

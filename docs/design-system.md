@@ -43,6 +43,22 @@ One screen carries one primary action. The dashboard has `Study N due cards`;
 everything else there is secondary or quiet. The study view has the card
 itself, which is why it is the only element with `--e-raised`.
 
+## Themes
+
+`:root` carries the dark values. A light palette is applied when the system asks
+for one and the student has not overridden it, and when they pick light
+explicitly; picking dark wins over a light system setting in the same way. The
+theme is stored under `tandem.theme`, separately from the workspace, so
+restoring the sample decks leaves the appearance alone.
+
+The light palette is not the dark one lightened. Accents are re-picked for a
+white ground: the dark theme's `#34d399` measures 1.7:1 on white, so the light
+theme uses `#047857`, and the same is true of the violet, amber and red. What
+does not change is what each colour means.
+
+An agent cannot change the theme. The tool surface is about the student's study
+state, and how their screen looks is not part of it.
+
 ## Accessibility
 
 - Every text and background pair in use clears 4.5:1. The audit that produced
@@ -52,6 +68,8 @@ itself, which is why it is the only element with `--e-raised`.
   border and a hatch, difficulty bars are `role="meter"` with a value, and the
   session progress bar is a `role="progressbar"`.
 - `harness/a11y.mjs` runs axe-core over the dashboard, an active session and a
-  pending permission request. It exits non-zero on any violation.
+  pending permission request, in both themes. It exits non-zero on any
+  violation. Adding the light theme is how the destructive button's ink and the
+  activity feed's missing keyboard access were found.
 - Focus is visible everywhere through one `:focus-visible` rule, there is a
   skip link to the board, and coarse pointers get larger hit areas.
