@@ -1,7 +1,8 @@
 import { useAppState } from '../core/useStore'
+import { useNow } from '../core/useNow'
 
-const ago = (t: number) => {
-  const s = Math.round((Date.now() - t) / 1000)
+const ago = (t: number, now: number) => {
+  const s = Math.round((now - t) / 1000)
   if (s < 60) return `${s}s ago`
   if (s < 3600) return `${Math.round(s / 60)}m ago`
   return `${Math.round(s / 3600)}h ago`
@@ -11,6 +12,7 @@ const LABEL = { agent: 'AGENT', replay: 'REPLAY', human: 'YOU' } as const
 
 export function ActivityFeed() {
   const { activity } = useAppState()
+  const now = useNow(15_000)
 
   return (
     <section className="panel">
@@ -32,7 +34,7 @@ export function ActivityFeed() {
               <div>
                 <div className="msg">{a.message}</div>
                 <div className="meta">
-                  {ago(a.at)}
+                  {ago(a.at, now)}
                   {a.tool ? (
                     <>
                       {' · '}
