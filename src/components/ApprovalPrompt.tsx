@@ -7,23 +7,23 @@ import type { ApprovalRequest } from '../core/types'
  */
 export function ApprovalPrompt({ request }: { request: ApprovalRequest }) {
   return (
-    <div className="approval" role="alertdialog" aria-labelledby="approval-title">
+    <section className="approval" aria-labelledby="approval-title" aria-live="assertive">
       <div className="approval-head">
         <span className="approval-tag">PERMISSION</span>
         <span className="hint">Your agent is asking. It cannot do this on its own.</span>
       </div>
-      <p id="approval-title" className="approval-summary">
+      <h2 id="approval-title" className="approval-summary">
         {request.summary}
-      </p>
-      <p className="hint">This would permanently lose {request.cost}.</p>
+      </h2>
+      <p className="hint">{request.cost}</p>
       <div className="row" style={{ marginTop: 12 }}>
-        <button className="btn sm primary" onClick={() => store.resolveRequest(request.id, true)}>
-          Allow
+        <button className="btn" onClick={() => store.resolveRequest(request.id, false)}>
+          {request.denyLabel}
         </button>
-        <button className="btn sm" onClick={() => store.resolveRequest(request.id, false)}>
-          Deny
+        <button className="btn danger-solid" onClick={() => store.resolveRequest(request.id, true)}>
+          {request.allowLabel}
         </button>
       </div>
-    </div>
+    </section>
   )
 }

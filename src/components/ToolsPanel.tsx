@@ -58,6 +58,7 @@ export function ToolsPanel({ hasSession, connected }: { hasSession: boolean; con
                   className={`tool${recent.has(name) && active ? ' hot' : ''}${active ? '' : ' off'}${open === name ? ' open' : ''}`}
                   onClick={() => setOpen(open === name ? null : name)}
                   aria-expanded={open === name}
+                  aria-label={active ? name : `${name}, currently withdrawn`}
                 >
                   {name}
                 </button>

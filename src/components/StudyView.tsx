@@ -55,7 +55,14 @@ export function StudyView() {
         <span className="pill">
           {deck?.name} · {session.label}
         </span>
-        <div className="progress">
+        <div
+          className="progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={session.queue.length}
+          aria-valuenow={session.index}
+          aria-label="Cards completed in this session"
+        >
           <i style={{ width: `${pct}%` }} />
         </div>
         <span className="hint">

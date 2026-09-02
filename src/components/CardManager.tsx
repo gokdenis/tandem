@@ -25,9 +25,9 @@ function CardRow({ card }: { card: Card }) {
   if (editing) {
     return (
       <div className="card-row editing">
-        <input value={front} onChange={(e) => setFront(e.target.value)} placeholder="Question" />
-        <input value={back} onChange={(e) => setBack(e.target.value)} placeholder="Answer" />
-        <input className="narrow" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Topic" />
+        <input value={front} onChange={(e) => setFront(e.target.value)} placeholder="Question" aria-label="Question" />
+        <input value={back} onChange={(e) => setBack(e.target.value)} placeholder="Answer" aria-label="Answer" />
+        <input className="narrow" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Topic" aria-label="Topic" />
         <div className="row">
           <button
             className="btn sm primary"
@@ -64,10 +64,14 @@ function CardRow({ card }: { card: Card }) {
         ) : null}
       </div>
       <div className="row">
-        <button className="btn sm quiet" onClick={() => setEditing(true)}>
+        <button className="btn sm quiet" onClick={() => setEditing(true)} aria-label={`Edit card: ${card.front}`}>
           Edit
         </button>
-        <button className="btn sm quiet danger" onClick={() => store.deleteCard(card.id, 'human')}>
+        <button
+          className="btn sm quiet danger"
+          onClick={() => store.deleteCard(card.id, 'human')}
+          aria-label={`Delete card: ${card.front}`}
+        >
           Delete
         </button>
       </div>
@@ -120,9 +124,9 @@ export function CardManager({ deckId }: { deckId: string }) {
 
       {mode === 'one' ? (
         <div className="form">
-          <input value={front} onChange={(e) => setFront(e.target.value)} placeholder="Question" />
-          <input value={back} onChange={(e) => setBack(e.target.value)} placeholder="Answer" />
-          <input className="narrow" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Topic" />
+          <input value={front} onChange={(e) => setFront(e.target.value)} placeholder="Question" aria-label="New card question" />
+          <input value={back} onChange={(e) => setBack(e.target.value)} placeholder="Answer" aria-label="New card answer" />
+          <input className="narrow" value={topic} onChange={(e) => setTopic(e.target.value)} placeholder="Topic" aria-label="New card topic" />
           <button className="btn sm primary" onClick={addOne}>
             Add
           </button>
@@ -136,6 +140,7 @@ export function CardManager({ deckId }: { deckId: string }) {
             notes, with add_cards.
           </p>
           <textarea
+            aria-label="Cards to add, one per line"
             rows={5}
             value={bulk}
             onChange={(e) => setBulk(e.target.value)}

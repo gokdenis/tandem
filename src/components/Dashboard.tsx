@@ -30,7 +30,9 @@ export function Dashboard({ onReplay }: { onReplay?: () => void }) {
   if (!deck) {
     return (
       <section className="panel">
-        <p className="empty">No decks yet. Ask your agent to make one, or reload for the demo data.</p>
+        <p className="empty">
+          No decks yet. Create one below, or ask your agent to build one from your notes.
+        </p>
       </section>
     )
   }
@@ -93,17 +95,17 @@ export function Dashboard({ onReplay }: { onReplay?: () => void }) {
           />
           <Stat
             value={annotated.length ? `${helping}/${annotated.length}` : '0'}
-            label="agent notes helping"
+            label="of your agent’s notes are working"
             tone={notLanding > 0 ? 'var(--warn)' : undefined}
           />
         </div>
 
         <div className="cta">
           <button className="btn lg primary" onClick={startDue} disabled={due === 0}>
-            {due > 0 ? `Study ${due} due cards` : 'Nothing due right now'}
+            {due > 0 ? `Study ${due} due cards` : 'Nothing due today'}
           </button>
           <button className="btn lg" onClick={startWeak}>
-            Drill the weakest
+            Drill your weakest topics
           </button>
           {onReplay ? (
             <button className="btn lg quiet" onClick={onReplay} title="Run the same tool calls an agent would make">
@@ -125,7 +127,14 @@ export function Dashboard({ onReplay }: { onReplay?: () => void }) {
           return (
             <div key={t.topic} className={focused ? 'topic-row focused' : 'topic-row'}>
               <div className="t">{t.topic}</div>
-              <div className="bar">
+              <div
+                className="bar"
+                role="meter"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(t.difficulty * 100)}
+                aria-label={`${t.topic} difficulty`}
+              >
                 <i style={{ width: `${Math.round(t.difficulty * 100)}%`, background: heat(t.difficulty) }} />
               </div>
               <div className="row">
@@ -182,8 +191,12 @@ export function Dashboard({ onReplay }: { onReplay?: () => void }) {
           <button className="btn sm quiet" onClick={() => setCreating(!creating)}>
             {creating ? 'Cancel' : 'New deck'}
           </button>
-          <button className="btn sm quiet" onClick={() => store.reset('human')} title="Restore the sample decks">
-            Reset workspace
+          <button
+            className="btn sm quiet"
+            onClick={() => store.reset('human')}
+            title="Replace everything here with the sample decks"
+          >
+            Restore sample decks
           </button>
           <button
             className="btn sm quiet danger"

@@ -100,9 +100,12 @@ export default function App() {
 
   return (
     <div className="app">
+      <a className="skip-link" href="#workspace">
+        Skip to the study board
+      </a>
       <Header status={status} exposed={activeTools(hasSession).length} registered={registered} />
       <div className="body">
-        <main className="main">
+        <main className="main" id="workspace" aria-label="Study board">
           {pending ? (
             <>
               <ApprovalPrompt request={pending} />
@@ -123,7 +126,7 @@ export default function App() {
           ) : null}
           {state.session ? <StudyView /> : <Dashboard onReplay={replayStep === null ? startReplay : undefined} />}
         </main>
-        <aside className="rail">
+        <aside className="rail" aria-label="Agent activity and tools">
           <ActivityFeed />
           <ToolsPanel hasSession={hasSession} connected={status.supported} />
         </aside>
