@@ -15,9 +15,16 @@ export function StudyView() {
   const state = useAppState()
   const session = state.session!
   const card = store.currentCard()
-  const deck = store.deck(session.deckId)
+  const startedFromDeck = store.deck(session.deckId)
+  const deck = card ? store.deck(card.deckId) : startedFromDeck
+  const queueDeckIds = new Set(
+    session.queue.map((id) => store.card(id)?.deckId).filter((id): id is string => Boolean(id)),
+  )
+  const mixedDecks = queueDeckIds.size > 1 || (deck !== undefined && deck.id !== session.deckId)
   const pct = session.queue.length ? Math.min(100, (session.index / session.queue.length) * 100) : 0
-  const focused = !!card && state.focus?.cardId === card.id
+  const focused =
+    !!card &&
+    (state.focus?.cardId === card.id || state.focus?.topic?.toLowerCase() === card.topic.toLowerCase())
 
   const revealed = session.revealed
   useEffect(() => {
@@ -54,6 +61,7 @@ export function StudyView() {
         </button>
         <span className="pill">
           {deck?.name} · {session.label}
+          {mixedDecks ? ' · mixed queue' : ''}
         </span>
         <div
           className="progress"
@@ -149,12 +157,15 @@ export function StudyView() {
                 Up next in the queue, which your agent can reorder at any time
               </p>
               <div className="tools">
-                {upNext.map((c) => (
-                  <span key={c!.id} className="queue-chip" title={c!.front}>
-                    <b>{c!.topic}</b>
-                    {c!.front.length > 38 ? `${c!.front.slice(0, 38)}…` : c!.front}
-                  </span>
-                ))}
+                {upNext.map((c) => {
+                  const queuedDeck = store.deck(c!.deckId)
+                  return (
+                    <span key={c!.id} className="queue-chip" title={c!.front}>
+                      <b>{queuedDeck?.id !== deck?.id ? `${queuedDeck?.name ?? 'Unknown deck'} · ` : ''}{c!.topic}</b>
+                      {c!.front.length > 38 ? `${c!.front.slice(0, 38)}…` : c!.front}
+                    </span>
+                  )
+                })}
               </div>
             </div>
           ) : null}

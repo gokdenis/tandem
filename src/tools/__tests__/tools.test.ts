@@ -32,10 +32,10 @@ describe('the tool surface', () => {
     }
   })
 
-  it('declares behaviour hints on every tool, so none ships without a stance', () => {
+  it('declares the current WebMCP safety hints on every tool', () => {
     for (const tool of tools) {
       expect(typeof tool.annotations?.readOnlyHint).toBe('boolean')
-      expect(typeof tool.annotations?.destructiveHint).toBe('boolean')
+      expect(typeof tool.annotations?.untrustedContentHint).toBe('boolean')
     }
   })
 
@@ -121,6 +121,22 @@ describe('the study loop', () => {
     const report = await call('get_note_impact', { deck: 'Operating Systems' })
     expect(text(report)).toContain('annotated card')
   })
+
+  it('reports the deck of the card actually on screen in a mixed-deck queue', async () => {
+    const [os, algorithms] = store.getSnapshot().decks
+    const otherCard = store.cardsOf(algorithms!.id)[0]!
+
+    await call('start_session', { deck: os!.name, mode: 'all', limit: 2 })
+    await call('queue_cards', { cardIds: [otherCard.id] })
+
+    const result = await call('get_study_state')
+    const session = (result.structuredContent as {
+      session: { deck: string; startedFromDeck: string; mixedDecks: boolean }
+    }).session
+    expect(session.deck).toBe(algorithms!.name)
+    expect(session.startedFromDeck).toBe(os!.name)
+    expect(session.mixedDecks).toBe(true)
+  })
 })
 
 describe('failure containment', () => {
@@ -135,7 +151,7 @@ describe('failure containment', () => {
       const r = await tool.execute({ deck: 'Operating' })
       expect(r.isError).toBe(true)
       expect(r.content[0]?.text).toContain('failed unexpectedly')
-      expect(r.content[0]?.text).toContain('Nothing was changed')
+      expect(r.content[0]?.text).toContain('Read the current state before retrying')
     } finally {
       store.weakTopics = original
     }

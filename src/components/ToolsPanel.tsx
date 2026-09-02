@@ -9,8 +9,7 @@ function Hints({ name }: { name: string }) {
   const chips: Array<[string, string]> = []
   if (a.readOnlyHint) chips.push(['read only', 'good'])
   else chips.push(['writes', 'neutral'])
-  if (a.destructiveHint) chips.push(['destructive', 'bad'])
-  if (a.idempotentHint) chips.push(['idempotent', 'neutral'])
+  if (a.untrustedContentHint) chips.push(['contains user content', 'neutral'])
   return (
     <div className="row" style={{ gap: 6, marginTop: 8 }}>
       {chips.map(([label, tone]) => (

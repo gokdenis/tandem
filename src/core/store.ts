@@ -12,6 +12,9 @@ export const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)
    tool call is an untrusted input, so text that goes into it is bounded. */
 export const MAX_TEXT = 2000
 export const MAX_TOPIC = 60
+export const MAX_DECK_NAME = 120
+export const MAX_DESCRIPTION = 500
+export const MAX_REASON = 300
 export const MAX_CARDS_PER_CALL = 500
 
 const clamp = (value: string, max: number) => (value.length > max ? `${value.slice(0, max - 1)}…` : value)
@@ -59,8 +62,6 @@ function load(): State {
         storage: 'ok',
         staleTab: false,
       }
-      // A stored session pointing at a deck that is gone would wedge the UI.
-      if (state.session && !state.decks.some((d) => d.id === state.session!.deckId)) state.session = null
       return prune(state)
     }
   } catch {
@@ -83,10 +84,22 @@ function prune(state: State): State {
 
   let session = state.session
   if (session) {
+    const currentId = session.queue[session.index]
     const queue = session.queue.filter((id) => live.has(id))
     if (queue.length === 0) session = null
-    else if (queue.length !== session.queue.length) {
-      session = { ...session, queue, index: Math.min(session.index, queue.length) }
+    else {
+      const currentIndex = currentId && live.has(currentId) ? queue.indexOf(currentId) : -1
+      const index = currentIndex >= 0 ? currentIndex : Math.min(session.index, queue.length)
+      const baseDeckStillExists = state.decks.some((d) => d.id === session!.deckId)
+      const fallbackDeckId = state.cards.find((c) => c.id === queue[Math.min(index, queue.length - 1)])?.deckId
+      if (queue.length !== session.queue.length || index !== session.index || !baseDeckStillExists) {
+        session = {
+          ...session,
+          queue,
+          index,
+          ...(baseDeckStillExists || !fallbackDeckId ? {} : { deckId: fallbackDeckId }),
+        }
+      }
     }
   }
 
@@ -101,12 +114,10 @@ class Store {
   private state: State = load()
   private listeners = new Set<Listener>()
   private writeTimer: ReturnType<typeof setTimeout> | null = null
+  /** The student's real workspace while the scripted demo runs in memory only. */
+  private replaySnapshot: State | null = null
   /** While the scripted replay runs, every tool-driven change is logged as 'replay'. */
   private actorOverride: Actor | null = null
-
-  setActorOverride(actor: Actor | null) {
-    this.actorOverride = actor
-  }
 
   subscribe = (l: Listener) => {
     this.listeners.add(l)
@@ -127,6 +138,7 @@ class Store {
    * flushed when the page is about to go away, so nothing is lost.
    */
   private schedulePersist() {
+    if (this.replaySnapshot !== null || this.state.staleTab) return
     if (this.writeTimer !== null) return
     this.writeTimer = setTimeout(() => {
       this.writeTimer = null
@@ -136,7 +148,16 @@ class Store {
 
   /** Another tab wrote a newer workspace; adopt it on request rather than silently. */
   markStale() {
+    if (this.replaySnapshot !== null) {
+      if (this.replaySnapshot.staleTab) return
+      this.replaySnapshot = { ...this.replaySnapshot, staleTab: true }
+      return
+    }
     if (this.state.staleTab) return
+    if (this.writeTimer !== null) {
+      clearTimeout(this.writeTimer)
+      this.writeTimer = null
+    }
     this.state = { ...this.state, staleTab: true }
     this.listeners.forEach((l) => l())
   }
@@ -146,7 +167,18 @@ class Store {
     this.listeners.forEach((l) => l())
   }
 
+  /** Explicitly let this tab replace the newer stored copy after warning the student. */
+  keepCurrentWorkspace() {
+    if (!this.state.staleTab || this.replaySnapshot !== null) return
+    this.state = { ...this.state, staleTab: false }
+    this.persistNow()
+    this.listeners.forEach((l) => l())
+  }
+
   persistNow() {
+    // The replay is deliberately ephemeral, and a stale tab must never overwrite
+    // the newer workspace that caused the warning.
+    if (this.replaySnapshot !== null || this.state.staleTab) return
     if (this.writeTimer !== null) {
       clearTimeout(this.writeTimer)
       this.writeTimer = null
@@ -242,16 +274,25 @@ class Store {
   /* ----------------------------------------------------------------- writes */
 
   createDeck(name: string, description: string, actor: Actor, tool?: string): Deck {
-    const deck: Deck = { id: uid('deck'), name, description, examAt: null, createdAt: Date.now() }
-    this.commit((s) => ({ ...s, decks: [...s.decks, deck] }), actor, `created deck “${name}”`, tool)
+    const safeName = clamp(name.trim(), MAX_DECK_NAME) || 'Untitled deck'
+    const safeDescription = clamp(description.trim(), MAX_DESCRIPTION)
+    const deck: Deck = {
+      id: uid('deck'),
+      name: safeName,
+      description: safeDescription,
+      examAt: null,
+      createdAt: Date.now(),
+    }
+    this.commit((s) => ({ ...s, decks: [...s.decks, deck] }), actor, `created deck “${safeName}”`, tool)
     return deck
   }
 
   renameDeck(deckId: string, name: string, actor: Actor, tool?: string) {
+    const safeName = clamp(name.trim(), MAX_DECK_NAME) || 'Untitled deck'
     this.commit(
-      (s) => ({ ...s, decks: s.decks.map((d) => (d.id === deckId ? { ...d, name } : d)) }),
+      (s) => ({ ...s, decks: s.decks.map((d) => (d.id === deckId ? { ...d, name: safeName } : d)) }),
       actor,
-      `renamed a deck to “${name}”`,
+      `renamed a deck to “${safeName}”`,
       tool,
     )
   }
@@ -265,7 +306,6 @@ class Store {
           decks: s.decks.filter((d) => d.id !== deckId),
           cards: s.cards.filter((c) => c.deckId !== deckId),
           plan: s.plan.filter((p) => p.deckId !== deckId),
-          session: s.session?.deckId === deckId ? null : s.session,
         }),
       actor,
       `deleted deck “${name}”`,
@@ -289,21 +329,24 @@ class Store {
     tool?: string,
   ): Card[] {
     const now = Date.now()
-    const made: Card[] = incoming.slice(0, MAX_CARDS_PER_CALL).map((c) => ({
-      id: uid('card'),
-      deckId,
-      front: clamp(c.front, MAX_TEXT),
-      back: clamp(c.back, MAX_TEXT),
-      topic: clamp(c.topic?.trim() || 'General', MAX_TOPIC),
-      note: c.note,
-      ease: 2.5,
-      interval: 0,
-      reps: 0,
-      lapses: 0,
-      dueAt: now,
-      history: [],
-      createdBy: actor,
-    }))
+    const made: Card[] = incoming.slice(0, MAX_CARDS_PER_CALL).map((c) => {
+      const note = c.note?.trim()
+      return {
+        id: uid('card'),
+        deckId,
+        front: clamp(c.front.trim(), MAX_TEXT),
+        back: clamp(c.back.trim(), MAX_TEXT),
+        topic: clamp(c.topic?.trim() || 'General', MAX_TOPIC),
+        ...(note ? { note: clamp(note, MAX_TEXT), noteAddedAt: now } : {}),
+        ease: 2.5,
+        interval: 0,
+        reps: 0,
+        lapses: 0,
+        dueAt: now,
+        history: [],
+        createdBy: actor,
+      }
+    })
     this.commit(
       (s) => ({ ...s, cards: [...s.cards, ...made] }),
       actor,
@@ -316,11 +359,11 @@ class Store {
   updateCard(cardId: string, patch: Partial<Pick<Card, 'front' | 'back' | 'topic' | 'note'>>, actor: Actor, tool?: string) {
     // Stamping the note lets noteImpact() split this card's history into
     // "before the explanation" and "after it", which is the whole point.
-    const bounded = { ...patch }
-    if (bounded.front !== undefined) bounded.front = clamp(bounded.front, MAX_TEXT)
-    if (bounded.back !== undefined) bounded.back = clamp(bounded.back, MAX_TEXT)
-    if (bounded.topic !== undefined) bounded.topic = clamp(bounded.topic, MAX_TOPIC)
-    if (bounded.note !== undefined) bounded.note = clamp(bounded.note, MAX_TEXT)
+    const bounded: Partial<Pick<Card, 'front' | 'back' | 'topic' | 'note'>> = {}
+    if (patch.front?.trim()) bounded.front = clamp(patch.front.trim(), MAX_TEXT)
+    if (patch.back?.trim()) bounded.back = clamp(patch.back.trim(), MAX_TEXT)
+    if (patch.topic?.trim()) bounded.topic = clamp(patch.topic.trim(), MAX_TOPIC)
+    if (patch.note?.trim()) bounded.note = clamp(patch.note.trim(), MAX_TEXT)
     const stamped = bounded.note !== undefined ? { ...bounded, noteAddedAt: Date.now() } : bounded
     this.commit(
       (s) => ({ ...s, cards: s.cards.map((c) => (c.id === cardId ? { ...c, ...stamped } : c)) }),
@@ -412,8 +455,13 @@ class Store {
 
   /* ------------------------------------------------------------------- plan */
 
-  setPlan(blocks: PlanBlock[], actor: Actor, tool?: string) {
-    this.commit((s) => ({ ...s, plan: blocks }), actor, `built a ${blocks.length}-day study plan`, tool)
+  setPlan(deckId: string, blocks: PlanBlock[], actor: Actor, tool?: string) {
+    this.commit(
+      (s) => ({ ...s, plan: [...s.plan.filter((p) => p.deckId !== deckId), ...blocks] }),
+      actor,
+      `built a ${blocks.length}-day study plan`,
+      tool,
+    )
   }
 
   togglePlanBlock(id: string, actor: Actor, tool?: string) {
@@ -451,10 +499,10 @@ class Store {
       id: uid('req'),
       action,
       targetId,
-      summary,
-      cost,
-      allowLabel: labels.allow,
-      denyLabel: labels.deny,
+      summary: clamp(summary.trim(), MAX_TEXT),
+      cost: clamp(cost.trim(), MAX_TEXT),
+      allowLabel: clamp(labels.allow.trim(), MAX_REASON),
+      denyLabel: clamp(labels.deny.trim(), MAX_REASON),
       askedAt: Date.now(),
       status: 'pending',
     }
@@ -482,12 +530,47 @@ class Store {
   }
 
   setFocus(focus: Focus, actor: Actor, tool?: string) {
+    const safeFocus: Focus = focus
+      ? {
+          ...(focus.cardId ? { cardId: focus.cardId } : {}),
+          ...(focus.topic?.trim() ? { topic: clamp(focus.topic.trim(), MAX_TOPIC) } : {}),
+          ...(focus.reason?.trim() ? { reason: clamp(focus.reason.trim(), MAX_REASON) } : {}),
+        }
+      : null
     this.commit(
-      (s) => ({ ...s, focus }),
+      (s) => ({ ...s, focus: safeFocus }),
       actor,
-      focus ? `highlighted ${focus.topic ? `topic “${focus.topic}”` : 'a card'} in the UI` : 'cleared the highlight',
+      safeFocus
+        ? `highlighted ${safeFocus.topic ? `topic “${safeFocus.topic}”` : 'a card'} in the UI`
+        : 'cleared the highlight',
       tool,
     )
+  }
+
+  /**
+   * Swap to the seeded demo in memory while keeping the student's persisted
+   * workspace untouched. Closing, stopping or completing the replay restores
+   * the exact snapshot that was present before it began.
+   */
+  beginReplay(): boolean {
+    if (this.replaySnapshot !== null) return false
+    const previous = structuredClone(this.state)
+    this.persistNow()
+    this.replaySnapshot = previous
+    this.actorOverride = 'replay'
+    this.state = seed()
+    this.log('replay', 'started a temporary replay workspace')
+    this.listeners.forEach((l) => l())
+    return true
+  }
+
+  endReplay() {
+    const previous = this.replaySnapshot
+    if (!previous) return
+    this.actorOverride = null
+    this.replaySnapshot = null
+    this.state = previous
+    this.listeners.forEach((l) => l())
   }
 
   reset(actor: Actor = 'human') {

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { store } from '../core/store'
+import { useAppState } from '../core/useStore'
 import { noteImpact } from '../core/srs'
 import type { Card } from '../core/types'
 
@@ -16,7 +17,7 @@ function ImpactBadge({ card }: { card: Card }) {
   )
 }
 
-function CardRow({ card }: { card: Card }) {
+function CardRow({ card, focused, focusReason }: { card: Card; focused: boolean; focusReason?: string | undefined }) {
   const [editing, setEditing] = useState(false)
   const [front, setFront] = useState(card.front)
   const [back, setBack] = useState(card.back)
@@ -48,11 +49,12 @@ function CardRow({ card }: { card: Card }) {
   }
 
   return (
-    <div className="card-row">
+    <div className={focused ? 'card-row focused' : 'card-row'}>
       <div className="grow">
         <div className="q">
           <span className="tag">{card.topic}</span>
           {card.front}
+          {focused && focusReason ? <span className="focus-tag">{focusReason}</span> : null}
         </div>
         <div className="a">{card.back}</div>
         {card.note ? (
@@ -82,6 +84,7 @@ function CardRow({ card }: { card: Card }) {
 const PAGE = 25
 
 export function CardManager({ deckId }: { deckId: string }) {
+  const state = useAppState()
   const [mode, setMode] = useState<'none' | 'one' | 'bulk'>('none')
   const [front, setFront] = useState('')
   const [back, setBack] = useState('')
@@ -188,7 +191,14 @@ export function CardManager({ deckId }: { deckId: string }) {
       ) : (
         <div className="card-list">
           {shown.map((c) => (
-            <CardRow key={c.id} card={c} />
+            <CardRow
+              key={c.id}
+              card={c}
+              focused={
+                state.focus?.cardId === c.id || state.focus?.topic?.toLowerCase() === c.topic.toLowerCase()
+              }
+              focusReason={state.focus?.reason}
+            />
           ))}
           {cards.length > shown.length ? (
             <div className="row" style={{ marginTop: 8 }}>

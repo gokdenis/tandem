@@ -6,7 +6,7 @@ export function ReplayBar({ index, step, onStop }: { index: number; step: Replay
       <div className="replay-head">
         <span className="replay-tag">REPLAY</span>
         <span className="hint">
-          Scripted tool calls running against this workspace. No agent is connected.
+          Scripted tool calls running in a temporary demo workspace. Your own decks return when it stops.
         </span>
         <div className="spacer" />
         <span className="hint" style={{ fontVariantNumeric: 'tabular-nums' }}>

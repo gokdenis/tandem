@@ -23,17 +23,11 @@ export type ToolResult = {
   structuredContent?: unknown
 }
 
-/**
- * MCP-style behaviour hints. A browser or agent that understands them can decide
- * what to call freely and what to confirm first; one that does not simply
- * ignores them.
- */
+/** Safety annotations defined by the current WebMCP RegisteredTool shape. */
 export type ToolAnnotations = {
-  title?: string
   readOnlyHint?: boolean
-  destructiveHint?: boolean
-  idempotentHint?: boolean
-  openWorldHint?: boolean
+  /** The result may contain student-authored or otherwise untrusted text. */
+  untrustedContentHint?: boolean
 }
 
 export type ToolDescriptor = {
@@ -62,4 +56,3 @@ declare global {
     modelContext?: ModelContext
   }
 }
-

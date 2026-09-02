@@ -1,6 +1,16 @@
 import { fail, ok } from '../webmcp/adapter'
 import type { ToolDescriptor } from '../webmcp/types'
-import { dateKey, MAX_CARDS_PER_CALL, MAX_TEXT, store, uid } from '../core/store'
+import {
+  dateKey,
+  MAX_CARDS_PER_CALL,
+  MAX_DECK_NAME,
+  MAX_DESCRIPTION,
+  MAX_REASON,
+  MAX_TEXT,
+  MAX_TOPIC,
+  store,
+  uid,
+} from '../core/store'
 import { difficulty, isDue, noteImpact, DAY } from '../core/srs'
 import type { Card, Deck, Grade, PlanBlock } from '../core/types'
 
@@ -8,7 +18,11 @@ import type { Card, Deck, Grade, PlanBlock } from '../core/types'
 
 const AGENT = 'agent' as const
 
-const str = (description: string) => ({ type: 'string', description })
+const str = (description: string, maxLength?: number) => ({
+  type: 'string',
+  description,
+  ...(maxLength === undefined ? {} : { maxLength }),
+})
 const int = (description: string) => ({ type: 'integer', description })
 
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
@@ -20,6 +34,8 @@ const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
 
 const brief = (c: Card) => ({
   id: c.id,
+  deckId: c.deckId,
+  deck: store.deck(c.deckId)?.name ?? null,
   topic: c.topic,
   front: c.front,
   back: c.back,
@@ -47,6 +63,25 @@ function needDeck(nameOrId: unknown): DeckLookup {
 
 const GRADES: Grade[] = ['again', 'hard', 'good', 'easy']
 
+/** Parse a local calendar date without letting JavaScript roll 30 February into March. */
+function parseLocalDate(value: string): number | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const date = new Date(`${value}T09:00:00`)
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null
+  }
+  return date.getTime()
+}
+
 /* -------------------------------------------------------------------- tools */
 
 export const tools: ToolDescriptor[] = [
@@ -60,6 +95,9 @@ export const tools: ToolDescriptor[] = [
       const s = store.getSnapshot()
       const rows = s.decks.map((d) => {
         const cards = store.cardsOf(d.id)
+        const overallDifficulty = cards.length
+          ? Number((cards.reduce((sum, card) => sum + difficulty(card), 0) / cards.length).toFixed(2))
+          : null
         return {
           id: d.id,
           name: d.name,
@@ -69,13 +107,14 @@ export const tools: ToolDescriptor[] = [
           examDate: d.examAt ? dateKey(d.examAt) : null,
           daysToExam: d.examAt ? Math.ceil((d.examAt - Date.now()) / DAY) : null,
           topics: [...store.topicsOf(d.id).keys()],
+          overallDifficulty,
         }
       })
       if (rows.length === 0) return ok('The workspace has no decks yet. Use create_deck to start one.', { decks: [] })
       const text = rows
         .map(
           (r) =>
-            `• ${r.name}: ${r.cards} cards, ${r.due} due now${r.examDate ? `, exam ${r.examDate} (in ${r.daysToExam}d)` : ''}. Topics: ${r.topics.join(', ')}`,
+            `• ${r.name}: ${r.cards} cards, ${r.due} due now, difficulty ${r.overallDifficulty ?? 'unrated'}${r.examDate ? `, exam ${r.examDate} (in ${r.daysToExam}d)` : ''}. Topics: ${r.topics.join(', ')}`,
         )
         .join('\n')
       return ok(text, { decks: rows })
@@ -90,7 +129,7 @@ export const tools: ToolDescriptor[] = [
       {
         deck: str('Deck name or id.'),
         topic: str('Optional: only return cards in this topic.'),
-        limit: int('Max cards per page. Default 60, hard cap 200.'),
+        limit: int('Max cards per page. Default 12, hard cap 50.'),
         offset: int('How many cards to skip. Use the nextOffset from the previous call.'),
       },
       ['deck'],
@@ -99,13 +138,27 @@ export const tools: ToolDescriptor[] = [
       const r = needDeck(deck)
       if (!r.found) return fail(r.error)
       let cards = store.cardsOf(r.deck.id)
-      if (topic) cards = cards.filter((c) => c.topic.toLowerCase() === String(topic).toLowerCase())
+      if (topic) {
+        const requestedTopic = String(topic).trim()
+        cards = cards.filter((c) => c.topic.toLowerCase() === requestedTopic.toLowerCase())
+        if (cards.length === 0) {
+          return fail(
+            `No cards in topic “${requestedTopic}”. Topics in this deck: ${[...store.topicsOf(r.deck.id).keys()].join(', ') || '(none yet)'}.`,
+          )
+        }
+      }
 
       const total = cards.length
-      const max = Math.max(1, Math.min(200, Number(limit) || 60))
-      const from = Math.max(0, Number(offset) || 0)
+      const max = Math.max(1, Math.min(50, Number(limit) || 12))
+      const from = Number(offset) || 0
+      if (!Number.isInteger(from) || from < 0) return fail('offset must be a non-negative whole number.')
+      if (from > 0 && from >= total) {
+        return fail(
+          `Offset ${from} is past the end: “${r.deck.name}” has ${total} card${total === 1 ? '' : 's'} with that filter.`,
+        )
+      }
       const shown = cards.slice(from, from + max)
-      const omitted = total - (from + shown.length)
+      const omitted = Math.max(0, total - (from + shown.length))
 
       const payload = {
         deck: { id: r.deck.id, name: r.deck.name, examDate: r.deck.examAt ? dateKey(r.deck.examAt) : null },
@@ -134,15 +187,18 @@ export const tools: ToolDescriptor[] = [
     inputSchema: obj(
       {
         query: str('Text to search for.'),
-        limit: int('Max results per page. Default 20, hard cap 100.'),
+        limit: int('Max results per page. Default 10, hard cap 50.'),
         offset: int('How many matches to skip. Use the nextOffset from the previous call.'),
       },
       ['query'],
     ),
     execute: ({ query, limit, offset }) => {
-      const q = String(query).toLowerCase()
-      const max = Math.max(1, Math.min(100, Number(limit) || 20))
-      const from = Math.max(0, Number(offset) || 0)
+      const rawQuery = String(query ?? '').trim()
+      if (!rawQuery) return fail('query must not be empty.')
+      const q = rawQuery.toLowerCase()
+      const max = Math.max(1, Math.min(50, Number(limit) || 10))
+      const from = Number(offset) || 0
+      if (!Number.isInteger(from) || from < 0) return fail('offset must be a non-negative whole number.')
 
       const all = store
         .getSnapshot()
@@ -150,12 +206,13 @@ export const tools: ToolDescriptor[] = [
       const hits = all.slice(from, from + max)
       const hasMore = from + hits.length < all.length
 
-      if (all.length === 0) return ok(`No cards match “${query}”.`, { total: 0, count: 0, offset: from, matches: [], hasMore: false })
+      if (all.length === 0)
+        return ok(`No cards match “${rawQuery}”.`, { total: 0, count: 0, offset: from, matches: [], hasMore: false })
       if (hits.length === 0)
-        return fail(`Offset ${from} is past the end: “${query}” has ${all.length} match${all.length === 1 ? '' : 'es'}.`)
+        return fail(`Offset ${from} is past the end: “${rawQuery}” has ${all.length} match${all.length === 1 ? '' : 'es'}.`)
 
       const text =
-        `${all.length} match${all.length === 1 ? '' : 'es'} for “${query}”` +
+        `${all.length} match${all.length === 1 ? '' : 'es'} for “${rawQuery}”` +
         (hasMore ? `, showing ${from + 1} to ${from + hits.length}` : '') +
         ':\n' +
         hits.map((c) => `[${store.deck(c.deckId)?.name} / ${c.topic}] ${c.front} → ${c.back}`).join('\n') +
@@ -186,10 +243,17 @@ export const tools: ToolDescriptor[] = [
           plan: s.plan.filter((p) => p.date === dateKey(Date.now())),
         })
       }
-      const deck = store.deck(s.session.deckId)
+      const startedFromDeck = store.deck(s.session.deckId)
+      const currentDeck = card ? store.deck(card.deckId) : startedFromDeck
+      const queueDeckIds = new Set([
+        s.session.deckId,
+        ...s.session.queue.map((id) => store.card(id)?.deckId).filter((id): id is string => Boolean(id)),
+      ])
       const payload = {
         session: {
-          deck: deck?.name,
+          deck: currentDeck?.name,
+          startedFromDeck: startedFromDeck?.name,
+          mixedDecks: queueDeckIds.size > 1,
           label: s.session.label,
           position: s.session.index + 1,
           total: s.session.queue.length,
@@ -201,7 +265,7 @@ export const tools: ToolDescriptor[] = [
         plan: s.plan.filter((p) => p.date === dateKey(Date.now())),
       }
       const text = card
-        ? `Studying “${deck?.name}” (${s.session.label}), card ${s.session.index + 1} of ${s.session.queue.length}. ` +
+        ? `Studying “${currentDeck?.name}”${queueDeckIds.size > 1 ? ` in a mixed queue started from “${startedFromDeck?.name}”` : ''} (${s.session.label}), card ${s.session.index + 1} of ${s.session.queue.length}. ` +
           `On screen: [${card.topic}] "${card.front}". Answer ${s.session.revealed ? `revealed: "${card.back}"` : 'still hidden'}. ` +
           `So far ${s.session.correct}/${s.session.graded} correct.`
         : `The session queue is finished (${s.session.correct}/${s.session.graded} correct). Call end_session or queue_cards to continue.`
@@ -233,9 +297,17 @@ export const tools: ToolDescriptor[] = [
     name: 'create_deck',
     description:
       'Create a new empty deck, then fill it with add_cards. Use this when the student mentions a subject that is not already in list_decks, rather than dropping unrelated cards into an existing deck.',
-    inputSchema: obj({ name: str('Deck name.'), description: str('One line about what it covers.') }, ['name']),
+    inputSchema: obj(
+      {
+        name: str('Deck name.', MAX_DECK_NAME),
+        description: str('One line about what it covers.', MAX_DESCRIPTION),
+      },
+      ['name'],
+    ),
     execute: ({ name, description }) => {
-      const deck = store.createDeck(String(name), String(description ?? ''), AGENT, 'create_deck')
+      const safeName = String(name ?? '').trim()
+      if (!safeName) return fail('name must not be empty.')
+      const deck = store.createDeck(safeName, String(description ?? ''), AGENT, 'create_deck')
       return ok(`Created deck “${deck.name}”.`, { deckId: deck.id })
     },
   },
@@ -252,10 +324,10 @@ export const tools: ToolDescriptor[] = [
           description: 'The cards to add.',
           items: obj(
             {
-              front: str('The question or prompt.'),
-              back: str('The answer.'),
-              topic: str('Short topic tag, e.g. "Deadlock". Group related cards under the same tag.'),
-              note: str('Optional explanation or mnemonic shown under the answer.'),
+              front: str('The question or prompt.', MAX_TEXT),
+              back: str('The answer.', MAX_TEXT),
+              topic: str('Short topic tag, e.g. "Deadlock". Group related cards under the same tag.', 60),
+              note: str('Optional explanation or mnemonic shown under the answer.', MAX_TEXT),
             },
             ['front', 'back'],
           ),
@@ -283,7 +355,9 @@ export const tools: ToolDescriptor[] = [
       const notes = [
         dropped > 0 ? `${dropped} had an empty front or back and were skipped` : '',
         overflow > 0 ? `${overflow} were beyond the ${MAX_CARDS_PER_CALL} card limit for one call and were not added, so send them in another call` : '',
-        clean.slice(0, made.length).some((c) => c.front.length > MAX_TEXT || c.back.length > MAX_TEXT)
+        clean
+          .slice(0, made.length)
+          .some((c) => c.front.length > MAX_TEXT || c.back.length > MAX_TEXT || (c.note?.length ?? 0) > MAX_TEXT)
           ? `some text was longer than ${MAX_TEXT} characters and was trimmed`
           : '',
       ].filter(Boolean)
@@ -305,16 +379,24 @@ export const tools: ToolDescriptor[] = [
     name: 'update_card',
     description: 'Rewrite an existing card’s question, answer or topic tag. Use search_cards or get_deck to find the id first.',
     inputSchema: obj(
-      { cardId: str('Card id.'), front: str('New question.'), back: str('New answer.'), topic: str('New topic tag.') },
+      {
+        cardId: str('Card id.'),
+        front: str('New question.', MAX_TEXT),
+        back: str('New answer.', MAX_TEXT),
+        topic: str('New topic tag.', MAX_TOPIC),
+      },
       ['cardId'],
     ),
     execute: ({ cardId, front, back, topic }) => {
       const card = store.card(String(cardId))
       if (!card) return fail(`No card with id ${cardId}.`)
       const patch: Record<string, string> = {}
-      if (front) patch.front = String(front)
-      if (back) patch.back = String(back)
-      if (topic) patch.topic = String(topic)
+      for (const [key, value] of Object.entries({ front, back, topic })) {
+        if (value === undefined) continue
+        const clean = String(value).trim()
+        if (!clean) return fail(`${key} must not be empty when provided.`)
+        patch[key] = clean
+      }
       if (Object.keys(patch).length === 0) return fail('Nothing to update. Pass front, back or topic.')
       store.updateCard(card.id, patch, AGENT, 'update_card')
       return ok(`Updated card ${card.id}.`, { card: brief({ ...card, ...patch } as Card) })
@@ -325,14 +407,16 @@ export const tools: ToolDescriptor[] = [
     name: 'annotate_card',
     description:
       'Attach an explanation, worked example or mnemonic to a card. The note appears under the answer whenever the student sees that card again, including in future sessions. Use this the moment the student gets something wrong: explaining once in chat is forgotten, a note on the card is not.',
-    inputSchema: obj({ cardId: str('Card id.'), note: str('The explanation or mnemonic. Keep it to two or three sentences.') }, [
-      'cardId',
-      'note',
-    ]),
+    inputSchema: obj(
+      { cardId: str('Card id.'), note: str('The explanation or mnemonic. Keep it to two or three sentences.', MAX_TEXT) },
+      ['cardId', 'note'],
+    ),
     execute: ({ cardId, note }) => {
       const card = store.card(String(cardId))
       if (!card) return fail(`No card with id ${cardId}.`)
-      store.updateCard(card.id, { note: String(note) }, AGENT, 'annotate_card')
+      const safeNote = String(note ?? '').trim()
+      if (!safeNote) return fail('note must not be empty.')
+      store.updateCard(card.id, { note: safeNote }, AGENT, 'annotate_card')
       return ok(`Saved your explanation onto “${card.front}”. The student will see it every time this card comes up.`)
     },
   },
@@ -341,17 +425,21 @@ export const tools: ToolDescriptor[] = [
     name: 'delete_card',
     description:
       'Ask the student for permission to permanently remove a card, for example a duplicate or one they say is wrong. This does not delete anything by itself. It puts the request on the student’s screen, where they press Allow or Deny; a deletion can only happen because they clicked, never because you asserted they agreed. Explain in chat why you are asking, then poll get_approval for the answer.',
-    inputSchema: obj({ cardId: str('Card id.'), reason: str('Why this card should go. Shown to the student.') }, ['cardId']),
+    inputSchema: obj(
+      { cardId: str('Card id.'), reason: str('Why this card should go. Shown to the student.', MAX_REASON) },
+      ['cardId'],
+    ),
     execute: ({ cardId, reason }) => {
       const card = store.card(String(cardId))
       if (!card) return fail(`No card with id ${cardId}.`)
       if (store.pendingRequest) return fail('The student already has an unanswered request on screen. Wait for that one.')
+      const safeReason = String(reason ?? '').trim().slice(0, MAX_REASON)
       const req = store.askApproval(
         'delete_card',
         card.id,
         `Delete the card "${card.front}"?`,
-        reason
-          ? `Your agent says: ${String(reason)}. Deleting it also removes ${card.history.length} recorded review${card.history.length === 1 ? '' : 's'}, and that cannot be undone.`
+        safeReason
+          ? `Your agent says: ${safeReason}. Deleting it also removes ${card.history.length} recorded review${card.history.length === 1 ? '' : 's'}, and that cannot be undone.`
           : `Deleting it also removes ${card.history.length} recorded review${card.history.length === 1 ? '' : 's'}, and that cannot be undone.`,
         { allow: 'Delete the card', deny: 'Keep it' },
         'delete_card',
@@ -397,8 +485,8 @@ export const tools: ToolDescriptor[] = [
         store.setExam(r.deck.id, null, AGENT, 'set_exam_date')
         return ok(`Cleared the exam date on “${r.deck.name}”.`)
       }
-      const t = Date.parse(`${raw}T09:00:00`)
-      if (Number.isNaN(t)) return fail(`Could not read “${date}” as a date. Use YYYY-MM-DD.`)
+      const t = parseLocalDate(raw)
+      if (t === null) return fail(`“${date}” is not a valid calendar date. Use YYYY-MM-DD.`)
       const days = Math.ceil((t - Date.now()) / DAY)
       if (days < 0) {
         // Almost always a wrong year. Reporting "-2436 days away" and planning
@@ -431,17 +519,21 @@ export const tools: ToolDescriptor[] = [
     execute: ({ deck, mode, topic, limit }) => {
       const r = needDeck(deck)
       if (!r.found) return fail(r.error)
+      const requestedMode = String(mode ?? '')
+      if (!['due', 'weak', 'topic', 'all'].includes(requestedMode)) {
+        return fail('mode must be one of due, weak, topic, all.')
+      }
       const max = Math.max(1, Math.min(100, Number(limit) || 12))
       let cards = store.cardsOf(r.deck.id)
       let label = ''
 
-      if (mode === 'due') {
+      if (requestedMode === 'due') {
         cards = cards.filter((c) => isDue(c)).sort((a, b) => a.dueAt - b.dueAt)
         label = 'due today'
-      } else if (mode === 'weak') {
+      } else if (requestedMode === 'weak') {
         cards = [...cards].sort((a, b) => difficulty(b) - difficulty(a))
         label = 'weakest first'
-      } else if (mode === 'topic') {
+      } else if (requestedMode === 'topic') {
         const t = String(topic ?? '').trim()
         if (!t) return fail('mode "topic" needs a topic.')
         cards = cards.filter((c) => c.topic.toLowerCase() === t.toLowerCase())
@@ -511,17 +603,35 @@ export const tools: ToolDescriptor[] = [
     description:
       'Replace the current session queue with a specific list of cards, in the order you give. Use it to pivot mid-session. For example, after the student misses two deadlock cards, pull every deadlock card to the front and restart from there.',
     inputSchema: obj(
-      { cardIds: { type: 'array', items: { type: 'string' }, description: 'Card ids in the order they should be studied.' } },
+      {
+        cardIds: {
+          type: 'array',
+          items: { type: 'string' },
+          maxItems: 100,
+          description: 'Card ids in the order they should be studied. At most 100.',
+        },
+      },
       ['cardIds'],
     ),
     execute: ({ cardIds }) => {
       const s = store.getSnapshot()
       if (!s.session) return fail('No session is running. Use start_session first.')
-      const ids = (Array.isArray(cardIds) ? cardIds : []).map(String).filter((id) => store.card(id))
+      const requested = (Array.isArray(cardIds) ? cardIds : []).map(String)
+      const acceptedInput = requested.slice(0, 100)
+      const ids = acceptedInput.filter((id) => store.card(id))
       if (ids.length === 0) return fail('None of those card ids exist.')
       store.reorderQueue(ids, AGENT, 'queue_cards')
       const first = store.currentCard()
-      return ok(`Queue replaced with ${ids.length} card${ids.length === 1 ? '' : 's'}. Now showing: "${first?.front}".`, { queued: ids.length })
+      const deckNames = [
+        ...new Set(ids.map((id) => store.card(id)?.deckId).map((id) => (id ? store.deck(id)?.name : undefined)).filter(Boolean)),
+      ] as string[]
+      const ignored = requested.length - ids.length
+      return ok(
+        `Queue replaced with ${ids.length} card${ids.length === 1 ? '' : 's'}${deckNames.length > 1 ? ` from ${deckNames.length} decks` : ''}. ` +
+          `Now showing “${first?.front}” in “${first ? store.deck(first.deckId)?.name : 'unknown deck'}”.` +
+          (ignored ? ` ${ignored} unknown or over-limit id${ignored === 1 ? ' was' : 's were'} ignored.` : ''),
+        { queued: ids.length, ignored, decks: deckNames, first: first ? brief(first) : null },
+      )
     },
   },
 
@@ -545,25 +655,41 @@ export const tools: ToolDescriptor[] = [
     description:
       'Point at something on the student’s screen: a topic or a single card gets outlined in the UI with your reason next to it. Use it when you want them to look at something while you explain it in chat.',
     inputSchema: obj(
-      { topic: str('Topic to highlight.'), cardId: str('Card to highlight.'), reason: str('Short label shown next to the highlight.') },
+      {
+        topic: str('Topic to highlight.', MAX_TOPIC),
+        cardId: str('Card to highlight.'),
+        reason: str('Short label shown next to the highlight.', MAX_REASON),
+      },
       [],
     ),
     execute: ({ topic, cardId, reason }) => {
-      if (!topic && !cardId) {
+      const requestedTopic = String(topic ?? '').trim()
+      const requestedCardId = String(cardId ?? '').trim()
+      if (!requestedTopic && !requestedCardId) {
         store.setFocus(null, AGENT, 'highlight')
         return ok('Cleared the highlight.')
       }
-      if (cardId && !store.card(String(cardId))) return fail(`No card with id ${cardId}.`)
+      if (requestedCardId && !store.card(requestedCardId)) return fail(`No card with id ${requestedCardId}.`)
+      const topicMatch = requestedTopic
+        ? store.getSnapshot().cards.find((card) => card.topic.toLowerCase() === requestedTopic.toLowerCase())?.topic
+        : undefined
+      if (requestedTopic && !topicMatch) {
+        const available = [...new Set(store.getSnapshot().cards.map((card) => card.topic))]
+        return fail(`No topic matches “${requestedTopic}”. Available topics: ${available.join(', ') || '(none yet)'}.`)
+      }
       store.setFocus(
         {
-          ...(topic ? { topic: String(topic) } : {}),
-          ...(cardId ? { cardId: String(cardId) } : {}),
+          ...(topicMatch ? { topic: topicMatch } : {}),
+          ...(requestedCardId ? { cardId: requestedCardId } : {}),
           ...(reason ? { reason: String(reason) } : {}),
         },
         AGENT,
         'highlight',
       )
-      return ok(`Highlighted ${topic ? `topic “${topic}”` : 'that card'} on the student’s screen.`)
+      const target = [topicMatch ? `topic “${topicMatch}”` : '', requestedCardId ? `card ${requestedCardId}` : '']
+        .filter(Boolean)
+        .join(' and ')
+      return ok(`Highlighted ${target} on the student’s screen.`)
     },
   },
 
@@ -650,11 +776,12 @@ export const tools: ToolDescriptor[] = [
       for (let d = 0; d < days; d++) {
         const perDay = d === days - 1 ? weak.length : Math.min(2, weak.length)
         const topics: string[] = []
-        while (topics.length < perDay && slots.length) {
+        let attempts = 0
+        while (topics.length < perDay && attempts < slots.length) {
           const t = slots[cursor % slots.length]
           cursor++
+          attempts++
           if (t !== undefined && !topics.includes(t)) topics.push(t)
-          if (cursor > slots.length * 3) break
         }
         blocks.push({
           id: uid('plan'),
@@ -666,7 +793,7 @@ export const tools: ToolDescriptor[] = [
         })
       }
 
-      store.setPlan(blocks, AGENT, 'plan_revision')
+      store.setPlan(r.deck.id, blocks, AGENT, 'plan_revision')
       const text = blocks.map((b) => `${b.date} · ${b.minutes} min · ${b.topics.join(' + ')}`).join('\n')
       return ok(
         `Planned ${days} days to the exam for “${r.deck.name}”, weighted toward ${weakest.topic}. The last day is a full sweep.\n${text}`,
@@ -690,7 +817,7 @@ for (const tool of tools) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`[tools] ${tool.name} threw`, err)
       return fail(
-        `${tool.name} failed unexpectedly: ${message}. Nothing was changed by this call. Try a different approach, or tell the student what you were attempting.`,
+        `${tool.name} failed unexpectedly: ${message}. The operation may not have completed. Read the current state before retrying, or tell the student what you were attempting.`,
       )
     }
   }
@@ -705,20 +832,33 @@ const READ_ONLY = new Set([
   'get_note_impact',
   'get_approval',
 ])
-// delete_card only ever asks. The deletion itself is carried out by the
-// student's click, so the hint marks the intent rather than the effect.
-const DESTRUCTIVE = new Set(['delete_card'])
+const UNTRUSTED_OUTPUT = new Set([
+  'list_decks',
+  'get_deck',
+  'search_cards',
+  'get_study_state',
+  'get_weak_topics',
+  'add_cards',
+  'update_card',
+  'annotate_card',
+  'delete_card',
+  'get_approval',
+  'set_exam_date',
+  'start_session',
+  'reveal_answer',
+  'grade_current_card',
+  'queue_cards',
+  'highlight',
+  'get_note_impact',
+  'plan_revision',
+])
 
 // Declared once over the finished list so a new tool cannot quietly ship
-// without a stance on whether it reads, writes or destroys.
+// without current WebMCP safety annotations.
 for (const tool of tools) {
   tool.annotations = {
     readOnlyHint: READ_ONLY.has(tool.name),
-    destructiveHint: DESTRUCTIVE.has(tool.name),
-    idempotentHint: READ_ONLY.has(tool.name) || tool.name === 'highlight' || tool.name === 'set_exam_date',
-    // Everything happens inside this page against the student's own workspace.
-    // Nothing reaches a network, so results are reproducible and private.
-    openWorldHint: false,
+    untrustedContentHint: UNTRUSTED_OUTPUT.has(tool.name),
   }
 }
 

@@ -53,8 +53,10 @@ const wait = (ms: number, signal: AbortSignal) =>
  * Nothing here is mocked: each step calls the same execute() an agent calls.
  */
 export async function runReplay(onStep: (index: number) => void, signal: AbortSignal): Promise<void> {
-  store.reset('replay')
-  store.setActorOverride('replay')
+  // The replay gets a seeded, in-memory workspace. The student's real state was
+  // flushed and snapshotted by beginReplay(), and is restored in finally even
+  // when they press Stop or a tool fails.
+  if (!store.beginReplay()) return
   try {
     for (const [i, step] of REPLAY_STEPS.entries()) {
       if (signal.aborted) return
@@ -71,6 +73,6 @@ export async function runReplay(onStep: (index: number) => void, signal: AbortSi
       }
     }
   } finally {
-    store.setActorOverride(null)
+    store.endReplay()
   }
 }

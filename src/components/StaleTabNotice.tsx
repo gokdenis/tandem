@@ -14,7 +14,7 @@ export function StaleTabNotice() {
         <button className="btn sm primary" onClick={() => store.adoptStoredWorkspace()}>
           Load the newer version
         </button>
-        <button className="btn sm quiet" onClick={() => store.persistNow()}>
+        <button className="btn sm quiet" onClick={() => store.keepCurrentWorkspace()}>
           Keep this one
         </button>
       </div>

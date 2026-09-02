@@ -115,10 +115,9 @@ export class ToolRegistry {
         try {
           await ctx.registerTool!(tool, { signal: controller.signal })
         } catch (err) {
-          // The specification's descriptor is name, description, inputSchema and
-          // execute. Behaviour annotations are standard MCP and worth sending,
-          // but a host that validates strictly would reject the whole tool over
-          // a field it does not know. Losing an annotation beats losing a tool.
+          // Current WebMCP hosts accept safety annotations. Some earlier
+          // experimental hosts validated the pre-annotation descriptor shape,
+          // so retry without annotations to keep the core tool available there.
           const { annotations: _dropped, ...core } = tool
           try {
             await ctx.registerTool!(core as ToolDescriptor, { signal: controller.signal })

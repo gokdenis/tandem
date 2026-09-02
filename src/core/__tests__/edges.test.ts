@@ -13,6 +13,19 @@ beforeEach(() => store.reset('human'))
 
 /** Each of these is a regression test for a defect that was actually present. */
 describe('edges that used to break', () => {
+  it('runs the scripted replay in a temporary workspace and restores the student data', () => {
+    const personal = store.createDeck('My private deck', 'must survive the replay', 'human')
+    store.addCards(personal.id, [{ front: 'mine', back: 'still mine', note: 'keep this too' }], 'human')
+    const before = structuredClone(store.getSnapshot())
+
+    expect(store.beginReplay()).toBe(true)
+    expect(store.getSnapshot().decks.some((d) => d.id === personal.id)).toBe(false)
+    store.createDeck('Replay-only deck', '', 'replay')
+    store.endReplay()
+
+    expect(store.getSnapshot()).toEqual(before)
+  })
+
   it('drops a deleted deck’s cards out of a running session instead of leaving ghosts', async () => {
     const [os, algo] = store.getSnapshot().decks
     await call('start_session', { deck: os!.name, mode: 'all', limit: 3 })
@@ -37,6 +50,31 @@ describe('edges that used to break', () => {
     expect(text(r)).toContain('in the past')
     // The refusal must leave the existing date alone, not half apply the change.
     expect(store.deck(os.id)?.examAt).toBe(before)
+  })
+
+  it('refuses an impossible calendar date instead of silently rolling it forward', async () => {
+    const os = store.getSnapshot().decks[0]!
+    const before = os.examAt
+    const result = await call('set_exam_date', { deck: os.name, date: '2026-02-30' })
+
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('valid calendar date')
+    expect(store.deck(os.id)?.examAt).toBe(before)
+  })
+
+  it('keeps plans for other decks and makes the last day a full topic sweep', async () => {
+    const [os, algorithms] = store.getSnapshot().decks
+    await call('plan_revision', { deck: os!.name, minutesPerDay: 40 })
+
+    const osPlan = store.getSnapshot().plan.filter((b) => b.deckId === os!.id)
+    const expectedTopics = [...store.topicsOf(os!.id).keys()].sort()
+    expect(osPlan.at(-1)?.topics.toSorted()).toEqual(expectedTopics)
+
+    store.setExam(algorithms!.id, Date.now() + 6 * 86_400_000, 'human')
+    await call('plan_revision', { deck: algorithms!.name, minutesPerDay: 30 })
+
+    expect(store.getSnapshot().plan.some((b) => b.deckId === os!.id)).toBe(true)
+    expect(store.getSnapshot().plan.some((b) => b.deckId === algorithms!.id)).toBe(true)
   })
 
   it('refuses to plan around an exam that has already happened', async () => {
@@ -75,6 +113,19 @@ describe('edges that used to break', () => {
     expect(second.isError).toBe(true)
     expect(store.getSnapshot().requests.filter((r) => r.status === 'pending')).toHaveLength(1)
   })
+
+  it('rejects blank deck names and blank card updates', async () => {
+    const decksBefore = store.getSnapshot().decks.length
+    const blankDeck = await call('create_deck', { name: '   ', description: 'x' })
+    expect(blankDeck.isError).toBe(true)
+    expect(store.getSnapshot().decks).toHaveLength(decksBefore)
+
+    const card = store.getSnapshot().cards[0]!
+    const frontBefore = card.front
+    const blankUpdate = await call('update_card', { cardId: card.id, front: '   ' })
+    expect(blankUpdate.isError).toBe(true)
+    expect(store.card(card.id)?.front).toBe(frontBefore)
+  })
 })
 
 describe('bounds under load', () => {
@@ -109,9 +160,14 @@ describe('bounds under load', () => {
   })
 
   it('trims text that would otherwise fill browser storage', async () => {
-    await call('add_cards', { deck: 'Operating', cards: [{ front: 'x'.repeat(50_000), back: 'y' }] })
-    const longest = Math.max(...store.getSnapshot().cards.map((c) => c.front.length))
-    expect(longest).toBeLessThanOrEqual(2000)
+    await call('add_cards', {
+      deck: 'Operating',
+      cards: [{ front: 'x'.repeat(50_000), back: 'y', note: 'n'.repeat(50_000) }],
+    })
+    const added = store.getSnapshot().cards.at(-1)!
+    expect(added.front.length).toBeLessThanOrEqual(2000)
+    expect(added.note?.length).toBeLessThanOrEqual(2000)
+    expect(added.noteAddedAt).toBeTypeOf('number')
   })
 
   it('never hands an agent an unbounded deck dump', async () => {
@@ -132,6 +188,10 @@ describe('bounds under load', () => {
     expect(second.offset).toBe(payload.count)
     const firstIds = new Set((r.structuredContent as { cards: Array<{ id: string }> }).cards.map((c) => c.id))
     expect(second.cards.some((c) => firstIds.has(c.id))).toBe(false)
+
+    const past = await call('get_deck', { deck: 'Operating', offset: 9999 })
+    expect(past.isError).toBe(true)
+    expect(text(past)).toContain('past the end')
   })
 })
 
