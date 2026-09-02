@@ -14,7 +14,8 @@ export function SetupBanner({ onReplay }: { onReplay: () => void }) {
           Watch a 40 second replay
         </button>
         <span className="hint">
-          Runs the same tool calls an agent would make, against this workspace. Restores the sample decks first.
+          Forty seconds. It makes the same tool calls an agent would, against this board, and restores the sample decks
+          before it starts.
         </span>
       </div>
     </div>

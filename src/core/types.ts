@@ -76,6 +76,9 @@ export type ApprovalRequest = {
   summary: string
   /** What is irreversibly lost if they allow it. */
   cost: string
+  /** Buttons name the action, not the permission. */
+  allowLabel: string
+  denyLabel: string
   askedAt: number
   status: 'pending' | 'allowed' | 'denied'
 }

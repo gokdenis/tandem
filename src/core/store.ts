@@ -322,13 +322,22 @@ class Store {
    * An agent asking is not the same as a student agreeing. This records the
    * question; only resolveRequest, wired to a button, can answer it.
    */
-  askApproval(action: ApprovalRequest['action'], targetId: string, summary: string, cost: string, tool?: string): ApprovalRequest {
+  askApproval(
+    action: ApprovalRequest['action'],
+    targetId: string,
+    summary: string,
+    cost: string,
+    labels: { allow: string; deny: string },
+    tool?: string,
+  ): ApprovalRequest {
     const req: ApprovalRequest = {
       id: uid('req'),
       action,
       targetId,
       summary,
       cost,
+      allowLabel: labels.allow,
+      denyLabel: labels.deny,
       askedAt: Date.now(),
       status: 'pending',
     }

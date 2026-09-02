@@ -20,7 +20,10 @@ export function ActivityFeed() {
         <p className="hint">who changed what</p>
       </div>
       {activity.length === 0 ? (
-        <p className="hint">Nothing yet. Study a card, or ask your agent to do something.</p>
+        <p className="hint">
+          No changes yet. Everything you or your agent does to this board appears here, newest first, tagged with the
+          tool that did it.
+        </p>
       ) : (
         <div className="feed" role="log" aria-live="polite">
           {activity.slice(0, 30).map((a) => (

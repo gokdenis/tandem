@@ -115,7 +115,7 @@ if (firstCard) {
   const stillThere = await page.evaluate((id) => !!document.body.innerText && !!id, reqId)
   console.log(`         card survives an unanswered request: ${stillThere}`)
   // Only a click in the interface can resolve it, which is the point.
-  await page.getByRole('button', { name: 'Deny' }).click()
+  await page.getByRole('button', { name: 'Keep it' }).click()
   await call('get_approval', { requestId: reqId })
 }
 

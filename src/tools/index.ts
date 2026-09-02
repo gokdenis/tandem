@@ -279,8 +279,11 @@ export const tools: ToolDescriptor[] = [
       const req = store.askApproval(
         'delete_card',
         card.id,
-        `Delete "${card.front}"${reason ? ` (${String(reason)})` : ''}`,
-        `${card.history.length} recorded review${card.history.length === 1 ? '' : 's'} and its scheduling state`,
+        `Delete the card "${card.front}"?`,
+        reason
+          ? `Your agent says: ${String(reason)}. Deleting it also removes ${card.history.length} recorded review${card.history.length === 1 ? '' : 's'}, and that cannot be undone.`
+          : `Deleting it also removes ${card.history.length} recorded review${card.history.length === 1 ? '' : 's'}, and that cannot be undone.`,
+        { allow: 'Delete the card', deny: 'Keep it' },
         'delete_card',
       )
       return ok(
