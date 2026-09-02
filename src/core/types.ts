@@ -10,6 +10,8 @@ export type Card = {
   topic: string
   /** An explanation or mnemonic. Usually written by the agent after a miss. */
   note?: string
+  /** When the current note was attached. Lets us measure whether it actually helped. */
+  noteAddedAt?: number
   /* --- spaced repetition state --- */
   ease: number
   interval: number

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useAppState } from '../core/useStore'
 import { store } from '../core/store'
+import { noteImpact } from '../core/srs'
 import type { Grade } from '../core/types'
 
 const GRADES: Array<{ g: Grade; label: string; hint: string; key: string }> = [
@@ -90,6 +91,18 @@ export function StudyView() {
                   <div className="note">
                     <span className="who">explanation from your agent</span>
                     {card.note}
+                    {(() => {
+                      const impact = noteImpact(card)
+                      if (!impact || impact.verdict === 'too early to tell') return null
+                      return (
+                        <div>
+                          <span className={`impact ${impact.verdict === 'helping' ? 'good' : 'bad'}`}>
+                            {impact.verdict}: missed {impact.beforeMisses}/{impact.beforeReviews} before this note,{' '}
+                            {impact.afterMisses}/{impact.afterReviews} after
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </div>
                 ) : null}
               </>

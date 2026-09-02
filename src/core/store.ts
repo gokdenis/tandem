@@ -1,5 +1,5 @@
 import type { Activity, Actor, Card, Deck, Focus, Grade, PlanBlock, Session, State } from './types'
-import { DAY, difficulty, isDue, schedule } from './srs'
+import { DAY, difficulty, isDue, noteImpact, schedule } from './srs'
 import { seed } from './seed'
 
 const KEY = 'tandem.state.v1'
@@ -100,6 +100,15 @@ class Store {
 
   dueCount = (deckId: string) => this.cardsOf(deckId).filter((c) => isDue(c)).length
 
+  /** Every annotated card in a deck, with a verdict on whether the note helped. */
+  annotated(deckId?: string) {
+    const cards = deckId ? this.cardsOf(deckId) : this.state.cards
+    return cards
+      .filter((c) => c.note && c.noteAddedAt)
+      .map((c) => ({ card: c, impact: noteImpact(c)! }))
+      .sort((a, b) => (a.impact.verdict === 'not landing' ? -1 : 1) - (b.impact.verdict === 'not landing' ? -1 : 1))
+  }
+
   currentCard(): Card | null {
     const s = this.state.session
     if (!s) return null
@@ -181,8 +190,11 @@ class Store {
   }
 
   updateCard(cardId: string, patch: Partial<Pick<Card, 'front' | 'back' | 'topic' | 'note'>>, actor: Actor, tool?: string) {
+    // Stamping the note lets noteImpact() split this card's history into
+    // "before the explanation" and "after it", which is the whole point.
+    const stamped = patch.note !== undefined ? { ...patch, noteAddedAt: Date.now() } : patch
     this.commit(
-      (s) => ({ ...s, cards: s.cards.map((c) => (c.id === cardId ? { ...c, ...patch } : c)) }),
+      (s) => ({ ...s, cards: s.cards.map((c) => (c.id === cardId ? { ...c, ...stamped } : c)) }),
       actor,
       patch.note !== undefined ? 'attached an explanation to a card' : 'edited a card',
       tool,
@@ -304,5 +316,5 @@ class Store {
 }
 
 export const store = new Store()
-export { DAY, difficulty, isDue }
+export { DAY, difficulty, isDue, noteImpact }
 export type { Grade }

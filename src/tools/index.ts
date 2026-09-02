@@ -1,7 +1,7 @@
 import { fail, ok } from '../webmcp/adapter'
 import type { ToolDescriptor } from '../webmcp/types'
 import { dateKey, store, uid } from '../core/store'
-import { difficulty, isDue, DAY } from '../core/srs'
+import { difficulty, isDue, noteImpact, DAY } from '../core/srs'
 import type { Card, Deck, Grade, PlanBlock } from '../core/types'
 
 /* ------------------------------------------------------------------ helpers */
@@ -360,7 +360,12 @@ export const tools: ToolDescriptor[] = [
       const card = store.currentCard()
       if (!card) return fail('No card is on screen. Start a session first.')
       store.reveal(AGENT, 'reveal_answer')
-      return ok(`Revealed: ${card.back}${card.note ? `\nNote on this card: ${card.note}` : ''}`, { card: brief(card) })
+      const impact = noteImpact(card)
+      return ok(
+        `Revealed: ${card.back}${card.note ? `\nNote on this card: ${card.note}` : ''}` +
+          (impact ? `\nSince that note was added the student has missed this ${impact.afterMisses} of ${impact.afterReviews} times (${impact.verdict}).` : ''),
+        { card: brief(card), noteImpact: impact },
+      )
     },
   },
 
@@ -445,6 +450,51 @@ export const tools: ToolDescriptor[] = [
     },
   },
 
+  {
+    name: 'get_note_impact',
+    description:
+      'Check whether the explanations you attached to cards actually worked. For every annotated card it compares the student’s miss rate before the note was added with the miss rate after it, and returns a verdict. Use it to find your own explanations that are not landing and rewrite them with annotate_card, rather than assuming an explanation stuck because you wrote it well.',
+    inputSchema: obj({ deck: str('Optional: only look at one deck.') }, []),
+    execute: ({ deck }) => {
+      let deckId: string | undefined
+      if (deck) {
+        const r = needDeck(deck)
+        if (!r.found) return fail(r.error)
+        deckId = r.deck.id
+      }
+      const rows = store.annotated(deckId)
+      if (rows.length === 0)
+        return ok('No cards have explanations attached yet. Use annotate_card the next time the student misses one.', {
+          annotated: [],
+        })
+
+      const payload = rows.map(({ card, impact }) => ({
+        cardId: card.id,
+        topic: card.topic,
+        front: card.front,
+        note: card.note,
+        verdict: impact.verdict,
+        beforeMisses: `${impact.beforeMisses}/${impact.beforeReviews}`,
+        afterMisses: `${impact.afterMisses}/${impact.afterReviews}`,
+        missRateChange: impact.delta,
+      }))
+
+      const text = payload
+        .map(
+          (r) =>
+            `[${r.verdict}] "${r.front}": missed ${r.beforeMisses} before the note, ${r.afterMisses} after.` +
+            (r.verdict === 'not landing' ? ' Consider rewriting this explanation.' : ''),
+        )
+        .join('\n')
+
+      const failing = payload.filter((r) => r.verdict === 'not landing').length
+      return ok(
+        `${payload.length} annotated card${payload.length === 1 ? '' : 's'}${failing ? `, ${failing} not landing` : ', all holding up'}:\n${text}`,
+        { annotated: payload },
+      )
+    },
+  },
+
   /* ---------------------------------------------------------------- planning */
   {
     name: 'plan_revision',
@@ -504,3 +554,21 @@ export const tools: ToolDescriptor[] = [
 ]
 
 export const toolNames = tools.map((t) => t.name)
+
+/**
+ * Tools that only mean anything while a card is on screen. Registering these
+ * when no session is running would offer an agent controls it cannot use.
+ */
+export const SESSION_ONLY = ['reveal_answer', 'grade_current_card', 'queue_cards', 'end_session']
+
+/** Tools that only mean anything when no session is running. */
+export const IDLE_ONLY = ['start_session']
+
+/** The tool surface for a given application state. */
+export function activeTools(hasSession: boolean): ToolDescriptor[] {
+  return tools.filter((t) => {
+    if (SESSION_ONLY.includes(t.name)) return hasSession
+    if (IDLE_ONLY.includes(t.name)) return !hasSession
+    return true
+  })
+}

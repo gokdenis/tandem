@@ -46,3 +46,39 @@ export function difficulty(card: Card): number {
 }
 
 export const isDue = (card: Card, now = Date.now()) => card.dueAt <= now
+
+export type NoteImpact = {
+  beforeReviews: number
+  beforeMisses: number
+  afterReviews: number
+  afterMisses: number
+  /** Miss rate before minus miss rate after. Positive means the note helped. */
+  delta: number | null
+  verdict: 'helping' | 'not landing' | 'too early to tell'
+}
+
+/**
+ * Did the explanation attached to this card actually change anything?
+ *
+ * This is the point of writing a note into durable state instead of saying it
+ * once in chat: the same history that drives scheduling also tells us whether
+ * the explanation worked, so the agent can rewrite the ones that did not land.
+ */
+export function noteImpact(card: Card): NoteImpact | null {
+  if (!card.note || !card.noteAddedAt) return null
+  const before = card.history.filter((h) => h.at < card.noteAddedAt!)
+  const after = card.history.filter((h) => h.at >= card.noteAddedAt!)
+  const missed = (list: typeof card.history) => list.filter((h) => h.grade === 'again' || h.grade === 'hard').length
+
+  const beforeMisses = missed(before)
+  const afterMisses = missed(after)
+  const beforeRate = before.length ? beforeMisses / before.length : null
+  const afterRate = after.length ? afterMisses / after.length : null
+
+  const delta = beforeRate !== null && afterRate !== null ? Number((beforeRate - afterRate).toFixed(2)) : null
+
+  let verdict: NoteImpact['verdict'] = 'too early to tell'
+  if (after.length >= 2) verdict = afterMisses === 0 || (delta !== null && delta > 0.2) ? 'helping' : 'not landing'
+
+  return { beforeReviews: before.length, beforeMisses, afterReviews: after.length, afterMisses, delta, verdict }
+}

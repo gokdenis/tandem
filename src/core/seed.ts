@@ -73,6 +73,32 @@ function build(deckId: string, rows: Row[]): Card[] {
   })
 }
 
+/**
+ * Attach an explanation to a card and give it review history from after that
+ * point, so get_note_impact has something real to measure on first run: one
+ * note that worked and one that plainly did not.
+ */
+function annotate(cards: Card[], match: string, note: string, after: Grade[]): void {
+  const card = cards.find((c) => c.front.startsWith(match))
+  if (!card) return
+  const now = Date.now()
+  const addedAt = now - (after.length + 1) * DAY
+
+  card.note = note
+  card.noteAddedAt = addedAt
+  // Push the existing reviews behind the note so the split is unambiguous.
+  card.history = [
+    ...card.history.map((h, i, all) => ({ ...h, at: addedAt - (all.length - i) * DAY })),
+    ...after.map((grade, i) => ({ at: addedAt + (i + 1) * DAY, grade, by: 'human' as const })),
+  ]
+  for (const g of after) {
+    if (g === 'again') {
+      card.lapses += 1
+      card.ease = Math.max(1.3, card.ease - 0.2)
+    }
+  }
+}
+
 export function seed(): State {
   const os: Deck = {
     id: id('deck'),
@@ -89,9 +115,24 @@ export function seed(): State {
     createdAt: Date.now() - 6 * DAY,
   }
 
+  const osCards = build(os.id, OS_ROWS)
+
+  annotate(
+    osCards,
+    'Why is a spinlock wrong',
+    'Think of it as the difference between waiting at a door and hammering on it. A spinlock holds the CPU while it waits, so it only pays off when the wait is shorter than a context switch.',
+    ['good', 'good', 'easy'],
+  )
+  annotate(
+    osCards,
+    'How does the Banker',
+    'It is a bank that will not lend if any customer could then be unable to finish. Safe means some completion order still exists.',
+    ['again', 'hard'],
+  )
+
   return {
     decks: [os, algo],
-    cards: [...build(os.id, OS_ROWS), ...build(algo.id, ALGO_ROWS)],
+    cards: [...osCards, ...build(algo.id, ALGO_ROWS)],
     session: null,
     plan: [],
     activity: [],
