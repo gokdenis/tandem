@@ -63,6 +63,10 @@ Then open the app in a browser that speaks WebMCP:
 
 The header pill tells you whether the tools registered and on which surface. Without WebMCP the app still works entirely by hand, and the agent half is additive, never load-bearing.
 
+### No WebMCP browser to hand?
+
+Click **Watch a replay** on the dashboard. It runs a scripted walkthrough through the real tool layer against the real store: the same `execute()` an agent calls, in the same order, writing to the same state. Nothing about it is mocked, and a labelled bar makes clear throughout that the calls are scripted and no agent is connected. It restores the sample workspace before it starts and takes about forty seconds.
+
 ## Testing without an agent
 
 `harness/simulate.mjs` installs a fake WebMCP host with Playwright, then drives the app **through the tools only**, including the failure paths. It also validates every registered schema (snake_case names, non-trivial descriptions, `required` keys that actually exist in `properties`).
@@ -91,6 +95,7 @@ Tool executors read live state at call time instead of closing over a snapshot, 
 
 - **The scheduler is real.** `src/core/srs.ts` is a compact SM-2 variant. `ease` and `lapses` are what make `get_weak_topics` a measurement rather than a guess. An agent reasoning about "what am I bad at" needs a signal with history behind it.
 - **Nothing is agent-only.** Every tool has a hand-operated equivalent in the interface. The claim that you and your agent share one board is only true if you can reach all of it too.
+- **Tools declare how they behave.** Every tool carries `readOnlyHint`, `destructiveHint` and `idempotentHint`, declared in one place over the finished list so a new tool cannot ship without a stance. `delete_card` is the only destructive tool and refuses to run without `confirm: true`, telling the agent how many recorded reviews would be lost so it can put a real question to the student.
 - **Tool descriptions are written for an agent, not for docs.** Each one says when to reach for it, e.g. `annotate_card`: *"explaining once in chat is forgotten, a note on the card is not."*
 - **Errors are recoverable.** A bad deck name returns the list of real deck names; a bad topic returns the deck's topics. The agent can fix itself in one turn.
 - **Deck arguments accept names, not just ids**, so the agent can pass through what the student actually said.
