@@ -98,8 +98,9 @@ Click **Watch a replay** on the dashboard. It runs a scripted walkthrough throug
 ## Tests
 
 ```bash
-npm test     # unit tests for the scheduler, note impact and the tool surface
+npm test      # unit tests for the scheduler, note impact and the tool surface
 npm run check # typecheck, tests and a production build
+npm run a11y  # axe-core over the dashboard, a session and a permission request
 ```
 
 The tool-layer tests assert the things a description can only promise: that failures come back with the real deck and topic names, that session controls are withdrawn when no card is on screen, that every tool declares behaviour hints, and that a delete request leaves the card in place until a human answers it.
@@ -139,7 +140,8 @@ Tool executors read live state at call time instead of closing over a snapshot, 
 - **Deck arguments accept names, not just ids**, so the agent can pass through what the student actually said.
 - **Every tool returns both prose and `structuredContent`**, so an agent gets a readable answer and a parseable one.
 - **One primary action per screen.** The dashboard leads with what is due and a single green button; everything else is secondary or quiet. The study card is the only thing on its screen with real visual weight.
-- **Contrast is measured, not eyeballed.** Every text colour clears WCAG AA against every panel background it is used on; the original muted grey sat at 3.4:1 and was raised.
+- **Contrast is measured, not eyeballed.** Every text and background pair in use clears WCAG AA. The audit found two real failures: the muted grey used for hints sat at 3.4:1, and withdrawn tool chips were faded to roughly 2:1. Both were fixed rather than waived, and `npm run a11y` fails the build if a new one appears.
+- **The stylesheet is a system, not a pile.** [docs/design-system.md](./docs/design-system.md) has the tokens and component variants. Nothing outside the token block declares a raw colour, size or radius.
 
 ## Stack
 
