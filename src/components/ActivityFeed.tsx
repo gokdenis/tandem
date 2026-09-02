@@ -23,7 +23,9 @@ export function ActivityFeed() {
         <div className="feed">
           {activity.slice(0, 22).map((a) => (
             <div className="feed-item" key={a.id}>
-              <span className={`badge ${a.actor}`}>{a.actor === 'agent' ? 'AGENT' : 'YOU'}</span>
+              <span className={`badge ${a.actor}`}>
+                {a.actor === 'agent' ? 'AGENT' : a.actor === 'replay' ? 'REPLAY' : 'YOU'}
+              </span>
               <div>
                 <div className="msg">{a.message}</div>
                 <div className="meta">

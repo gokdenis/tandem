@@ -337,3 +337,84 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
 
 /* --------------------------------------------------- withdrawn tool chips */
 .tool.off { opacity: .34; border-style: dashed; }
+
+/* ------------------------------------------------------------------ replay */
+.replay-bar {
+  border: 1px solid rgba(167,139,250,.35);
+  background: linear-gradient(180deg, rgba(167,139,250,.10), rgba(167,139,250,.04));
+  border-radius: var(--r-lg);
+  padding: 14px 16px 12px;
+}
+.replay-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.replay-tag {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em;
+  background: rgba(167,139,250,.2); color: #cdbcff;
+  padding: 3px 8px; border-radius: 5px;
+}
+.replay-line {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 12px 0 10px; animation: rise .3s ease;
+}
+.replay-line .who {
+  font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 5px; white-space: nowrap;
+}
+.replay-line.student .who { background: rgba(52,211,153,.14); color: #6ee7b7; }
+.replay-line.agent .who { background: rgba(167,139,250,.16); color: #c9b6ff; }
+.replay-line .said { font-size: 15px; color: var(--text); }
+.replay-line code { font-family: var(--mono); font-size: 11.5px; color: var(--agent); }
+.replay-progress { height: 3px; background: #1d2330; border-radius: 999px; overflow: hidden; }
+.replay-progress > i { display: block; height: 100%; background: var(--agent); transition: width .4s ease; }
+
+.badge.replay { background: rgba(167,139,250,.16); color: #c9b6ff; }
+
+/* --------------------------------------------------- focus and motion */
+:where(button, input, textarea, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--agent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+/* ------------------------------------------------------------- narrow screens */
+@media (max-width: 720px) {
+  body { font-size: 14.5px; }
+  .header { padding: 14px 16px 12px; gap: 10px; }
+  .brand span { display: none; }
+  .body { padding: 0 14px 20px; gap: 14px; }
+  .panel { padding: 16px 14px; border-radius: var(--r); }
+
+  .deck { flex-wrap: wrap; padding: 14px; }
+  .countdown { text-align: left; }
+
+  .topic-row { grid-template-columns: 1fr; gap: 6px; padding: 10px 6px; }
+  .topic-row .n { justify-self: start; }
+
+  .card { padding: 22px 18px; min-height: 0; }
+  .card .front { font-size: 19px; }
+  .grades { gap: 8px; }
+  .grade { min-width: 0; flex: 1 1 44%; }
+
+  .card-row { flex-wrap: wrap; }
+  .card-row.editing { grid-template-columns: 1fr; }
+  .card-row .row { width: 100%; }
+
+  .form { flex-direction: column; align-items: stretch; }
+  .form > input, .form > input.narrow { flex: 1 1 auto; width: 100%; }
+
+  .plan-block { grid-template-columns: auto 62px 1fr; row-gap: 4px; }
+  .plan-block .m { grid-column: 3; justify-self: end; }
+
+  .replay-line .said { font-size: 14px; }
+}
+
+/* Wide content must scroll inside itself, never push the page sideways. */
+.tools, .card-list { max-width: 100%; }
+.card-row .q, .card-row .a { overflow-wrap: anywhere; }

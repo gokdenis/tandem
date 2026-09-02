@@ -14,6 +14,8 @@ import { Dashboard } from './components/Dashboard'
 import { StudyView } from './components/StudyView'
 import { ActivityFeed } from './components/ActivityFeed'
 import { ToolsPanel } from './components/ToolsPanel'
+import { ReplayBar } from './components/ReplayBar'
+import { REPLAY_STEPS, runReplay } from './replay/script'
 
 export default function App() {
   const state = useAppState()
@@ -21,6 +23,24 @@ export default function App() {
   /** What the browser itself reports through getTools(), not our own count. */
   const [registered, setRegistered] = useState<number | null>(null)
   const registry = useRef<ToolRegistry | null>(null)
+  const [replayStep, setReplayStep] = useState<number | null>(null)
+  const replayAbort = useRef<AbortController | null>(null)
+
+  const startReplay = () => {
+    replayAbort.current?.abort()
+    const controller = new AbortController()
+    replayAbort.current = controller
+    setReplayStep(0)
+    void runReplay(setReplayStep, controller.signal).finally(() => {
+      if (!controller.signal.aborted) setReplayStep(null)
+    })
+  }
+
+  const stopReplay = () => {
+    replayAbort.current?.abort()
+    replayAbort.current = null
+    setReplayStep(null)
+  }
 
   const hasSession = state.session !== null
 
@@ -81,17 +101,23 @@ export default function App() {
       <Header status={status} exposed={activeTools(hasSession).length} registered={registered} />
       <div className="body">
         <main className="main">
-          {!status.supported ? (
+          {replayStep !== null ? (
             <>
-              <SetupBanner />
+              <ReplayBar index={replayStep} step={REPLAY_STEPS[replayStep]} onStop={stopReplay} />
               <div style={{ height: 16 }} />
             </>
           ) : null}
-          {state.session ? <StudyView /> : <Dashboard />}
+          {!status.supported && replayStep === null ? (
+            <>
+              <SetupBanner onReplay={startReplay} />
+              <div style={{ height: 16 }} />
+            </>
+          ) : null}
+          {state.session ? <StudyView /> : <Dashboard onReplay={replayStep === null ? startReplay : undefined} />}
         </main>
         <aside className="rail">
           <ActivityFeed />
-          <ToolsPanel hasSession={hasSession} />
+          <ToolsPanel hasSession={hasSession} connected={status.supported} />
         </aside>
       </div>
     </div>

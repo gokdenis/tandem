@@ -29,6 +29,12 @@ type Listener = () => void
 class Store {
   private state: State = load()
   private listeners = new Set<Listener>()
+  /** While the scripted replay runs, every tool-driven change is logged as 'replay'. */
+  private actorOverride: Actor | null = null
+
+  setActorOverride(actor: Actor | null) {
+    this.actorOverride = actor
+  }
 
   subscribe = (l: Listener) => {
     this.listeners.add(l)
@@ -54,7 +60,7 @@ class Store {
 
   /** Every mutation goes through here so the activity feed can never drift from state. */
   private commit(mutate: (s: State) => State, actor: Actor, message: string, tool?: string) {
-    this.log(actor, message, tool)
+    this.log(this.actorOverride ?? actor, message, tool)
     this.set(mutate(this.state))
   }
 

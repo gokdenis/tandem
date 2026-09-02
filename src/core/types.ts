@@ -1,4 +1,5 @@
-export type Actor = 'human' | 'agent'
+/** 'replay' is the scripted walkthrough, so its actions can never be mistaken for a live agent's. */
+export type Actor = 'human' | 'agent' | 'replay'
 export type Grade = 'again' | 'hard' | 'good' | 'easy'
 
 export type Card = {

@@ -7,7 +7,7 @@ import { CardManager } from './CardManager'
 const heat = (d: number) =>
   d > 0.6 ? 'var(--bad)' : d > 0.35 ? 'var(--warn)' : 'var(--good)'
 
-export function Dashboard() {
+export function Dashboard({ onReplay }: { onReplay?: () => void }) {
   const state = useAppState()
   const [selected, setSelected] = useState(state.decks[0]?.id ?? '')
   const [creating, setCreating] = useState(false)
@@ -45,6 +45,11 @@ export function Dashboard() {
         <div className="panel-head">
           <h2>Decks</h2>
           <div className="spacer" />
+          {onReplay ? (
+            <button className="btn sm" onClick={onReplay} title="Run the same tool calls an agent would make">
+              Watch a replay
+            </button>
+          ) : null}
           <button className="btn sm ghost" onClick={() => store.reset('human')} title="Restore the sample decks and clear your changes">
             Reset workspace
           </button>
