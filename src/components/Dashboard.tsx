@@ -7,10 +7,21 @@ import { useNow } from '../core/useNow'
 
 const heat = (d: number) => (d > 0.6 ? 'var(--bad)' : d > 0.35 ? 'var(--warn)' : 'var(--good)')
 
-function Stat({ value, label, tone }: { value: string; label: string; tone?: string | undefined }) {
+function Stat({
+  value,
+  label,
+  tone,
+  word,
+}: {
+  value: string
+  label: string
+  tone?: string | undefined
+  /** A word needs more room than a number, so it is set smaller and may wrap. */
+  word?: boolean | undefined
+}) {
   return (
     <div className="stat">
-      <div className="stat-value" style={tone ? { color: tone } : undefined}>
+      <div className={word ? 'stat-value word' : 'stat-value'} style={tone ? { color: tone } : undefined}>
         {value}
       </div>
       <div className="stat-label">{label}</div>
@@ -88,12 +99,14 @@ export function Dashboard({ onReplay }: { onReplay?: (() => void) | undefined })
           <Stat
             value={days !== null ? `${days}d` : 'not set'}
             label={days !== null ? 'until the exam' : 'exam date'}
+            word={days === null}
             tone={days !== null && days <= 7 ? 'var(--warn)' : undefined}
           />
           <Stat
             value={weak[0]?.topic ?? 'none yet'}
             label="weakest topic"
             tone={weak[0] ? heat(weak[0].difficulty) : undefined}
+            word
           />
           <Stat
             value={annotated.length ? `${helping}/${annotated.length}` : '0'}
