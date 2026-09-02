@@ -90,11 +90,12 @@ export const tools: ToolDescriptor[] = [
       {
         deck: str('Deck name or id.'),
         topic: str('Optional: only return cards in this topic.'),
-        limit: int('Max cards to return. Default 60, hard cap 200.'),
+        limit: int('Max cards per page. Default 60, hard cap 200.'),
+        offset: int('How many cards to skip. Use the nextOffset from the previous call.'),
       },
       ['deck'],
     ),
-    execute: ({ deck, topic, limit }) => {
+    execute: ({ deck, topic, limit, offset }) => {
       const r = needDeck(deck)
       if (!r.found) return fail(r.error)
       let cards = store.cardsOf(r.deck.id)
@@ -102,22 +103,25 @@ export const tools: ToolDescriptor[] = [
 
       const total = cards.length
       const max = Math.max(1, Math.min(200, Number(limit) || 60))
-      const shown = cards.slice(0, max)
-      const omitted = total - shown.length
+      const from = Math.max(0, Number(offset) || 0)
+      const shown = cards.slice(from, from + max)
+      const omitted = total - (from + shown.length)
 
       const payload = {
         deck: { id: r.deck.id, name: r.deck.name, examDate: r.deck.examAt ? dateKey(r.deck.examAt) : null },
         total,
-        returned: shown.length,
-        omitted,
+        count: shown.length,
+        offset: from,
+        hasMore: omitted > 0,
+        nextOffset: omitted > 0 ? from + shown.length : null,
         topics: [...store.topicsOf(r.deck.id).keys()],
         cards: shown.map(brief),
       }
-      const header = `${r.deck.name} (${total} cards${topic ? ` in topic “${topic}”` : ''}${omitted > 0 ? `, showing the first ${shown.length}` : ''}):`
+      const header = `${r.deck.name} (${total} cards${topic ? ` in topic “${topic}”` : ''}${omitted > 0 ? `, showing ${from + 1} to ${from + shown.length}` : ''}):`
       const body = shown.map((c) => `[${c.topic}] ${c.front} → ${c.back}${c.note ? ` (note: ${c.note})` : ''}`).join('\n')
       const footer =
         omitted > 0
-          ? `\n\n${omitted} more not shown. Narrow with topic (${[...store.topicsOf(r.deck.id).keys()].slice(0, 6).join(', ')}) or use search_cards.`
+          ? `\n\n${omitted} more not shown. Call again with offset ${from + shown.length}, narrow with topic (${[...store.topicsOf(r.deck.id).keys()].slice(0, 6).join(', ')}), or use search_cards.`
           : ''
       return ok(`${header}\n${body}${footer}`, payload)
     },
@@ -126,22 +130,45 @@ export const tools: ToolDescriptor[] = [
   {
     name: 'search_cards',
     description:
-      'Full-text search across every card in every deck (front, back, topic and notes). Use it to check whether a card already exists before adding a duplicate.',
-    inputSchema: obj({ query: str('Text to search for.'), limit: int('Max results, default 20.') }, ['query']),
-    execute: ({ query, limit }) => {
+      'Full-text search across every card in every deck (front, back, topic and notes). Use it to check whether a card already exists before adding a duplicate, and to find one card without reading a whole deck. Results are paginated: pass the returned nextOffset to continue.',
+    inputSchema: obj(
+      {
+        query: str('Text to search for.'),
+        limit: int('Max results per page. Default 20, hard cap 100.'),
+        offset: int('How many matches to skip. Use the nextOffset from the previous call.'),
+      },
+      ['query'],
+    ),
+    execute: ({ query, limit, offset }) => {
       const q = String(query).toLowerCase()
       const max = Math.max(1, Math.min(100, Number(limit) || 20))
-      const hits = store
+      const from = Math.max(0, Number(offset) || 0)
+
+      const all = store
         .getSnapshot()
-        .cards.filter((c) =>
-          [c.front, c.back, c.topic, c.note ?? ''].some((f) => f.toLowerCase().includes(q)),
-        )
-        .slice(0, max)
-      if (hits.length === 0) return ok(`No cards match “${query}”.`, { matches: [] })
-      return ok(
-        hits.map((c) => `[${store.deck(c.deckId)?.name} / ${c.topic}] ${c.front} → ${c.back}`).join('\n'),
-        { matches: hits.map(brief) },
-      )
+        .cards.filter((c) => [c.front, c.back, c.topic, c.note ?? ''].some((f) => f.toLowerCase().includes(q)))
+      const hits = all.slice(from, from + max)
+      const hasMore = from + hits.length < all.length
+
+      if (all.length === 0) return ok(`No cards match “${query}”.`, { total: 0, count: 0, offset: from, matches: [], hasMore: false })
+      if (hits.length === 0)
+        return fail(`Offset ${from} is past the end: “${query}” has ${all.length} match${all.length === 1 ? '' : 'es'}.`)
+
+      const text =
+        `${all.length} match${all.length === 1 ? '' : 'es'} for “${query}”` +
+        (hasMore ? `, showing ${from + 1} to ${from + hits.length}` : '') +
+        ':\n' +
+        hits.map((c) => `[${store.deck(c.deckId)?.name} / ${c.topic}] ${c.front} → ${c.back}`).join('\n') +
+        (hasMore ? `\n\nMore available: call again with offset ${from + hits.length}.` : '')
+
+      return ok(text, {
+        total: all.length,
+        count: hits.length,
+        offset: from,
+        hasMore,
+        nextOffset: hasMore ? from + hits.length : null,
+        matches: hits.map(brief),
+      })
     },
   },
 
@@ -689,6 +716,9 @@ for (const tool of tools) {
     readOnlyHint: READ_ONLY.has(tool.name),
     destructiveHint: DESTRUCTIVE.has(tool.name),
     idempotentHint: READ_ONLY.has(tool.name) || tool.name === 'highlight' || tool.name === 'set_exam_date',
+    // Everything happens inside this page against the student's own workspace.
+    // Nothing reaches a network, so results are reproducible and private.
+    openWorldHint: false,
   }
 }
 
