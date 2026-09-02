@@ -82,11 +82,15 @@ export function Dashboard({ onReplay }: { onReplay?: () => void }) {
         <div className="stats">
           <Stat value={String(due)} label="cards due now" tone={due > 0 ? 'var(--human)' : undefined} />
           <Stat
-            value={days !== null ? `${days}d` : '—'}
-            label={days !== null ? 'until the exam' : 'no exam set'}
+            value={days !== null ? `${days}d` : 'not set'}
+            label={days !== null ? 'until the exam' : 'exam date'}
             tone={days !== null && days <= 7 ? 'var(--warn)' : undefined}
           />
-          <Stat value={weak[0]?.topic ?? '—'} label="weakest topic" tone={weak[0] ? heat(weak[0].difficulty) : undefined} />
+          <Stat
+            value={weak[0]?.topic ?? 'none yet'}
+            label="weakest topic"
+            tone={weak[0] ? heat(weak[0].difficulty) : undefined}
+          />
           <Stat
             value={annotated.length ? `${helping}/${annotated.length}` : '0'}
             label="agent notes helping"
