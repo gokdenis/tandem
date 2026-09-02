@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   browserToolCount,
   detectWebMCP,
@@ -19,7 +19,19 @@ import { ReplayBar } from './components/ReplayBar'
 import { ApprovalPrompt } from './components/ApprovalPrompt'
 import { StorageNotice } from './components/StorageNotice'
 import { StaleTabNotice } from './components/StaleTabNotice'
+import { Onboarding } from './components/Onboarding'
 import { REPLAY_STEPS, runReplay } from './replay/script'
+
+const ONBOARDING_KEY = 'tandem.onboarding.v1'
+
+function shouldShowOnboarding() {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(ONBOARDING_KEY) !== 'complete'
+  } catch {
+    return true
+  }
+}
 
 export default function App() {
   const state = useAppState()
@@ -29,7 +41,17 @@ export default function App() {
   const [registered, setRegistered] = useState<number | null>(null)
   const registry = useRef<ToolRegistry | null>(null)
   const [replayStep, setReplayStep] = useState<number | null>(null)
+  const [onboardingOpen, setOnboardingOpen] = useState(shouldShowOnboarding)
   const replayAbort = useRef<AbortController | null>(null)
+
+  const closeOnboarding = useCallback(() => {
+    try {
+      window.localStorage.setItem(ONBOARDING_KEY, 'complete')
+    } catch {
+      // The tour can still close when browser storage is unavailable.
+    }
+    setOnboardingOpen(false)
+  }, [])
 
   const startReplay = () => {
     replayAbort.current?.abort()
@@ -115,6 +137,7 @@ export default function App() {
         registered={registered}
         theme={theme}
         onTheme={setTheme}
+        onOnboarding={() => setOnboardingOpen(true)}
       />
       <div className="body">
         <main className="main" id="workspace" aria-label="Study board">
@@ -155,6 +178,7 @@ export default function App() {
           <ToolsPanel hasSession={hasSession} connected={status.supported} />
         </aside>
       </div>
+      {onboardingOpen ? <Onboarding onClose={closeOnboarding} /> : null}
     </div>
   )
 }

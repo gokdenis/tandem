@@ -8,12 +8,14 @@ export function Header({
   registered,
   theme,
   onTheme,
+  onOnboarding,
 }: {
   status: WebMCPStatus
   exposed: number
   registered: number | null
   theme: ThemeChoice
   onTheme: (next: ThemeChoice) => void
+  onOnboarding: () => void
 }) {
   return (
     <header className="header">
@@ -22,6 +24,9 @@ export function Header({
         <span>a study board you and your agent share</span>
       </div>
       <div className="spacer" />
+      <button type="button" className="btn sm quiet" onClick={onOnboarding}>
+        How it works
+      </button>
       <ThemePicker value={theme} onChange={onTheme} />
       <span className="pill" title="The tool surface changes with what the app is doing.">
         <b style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{exposed}</b>
