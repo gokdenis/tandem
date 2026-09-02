@@ -101,8 +101,9 @@ export function CardManager({ deckId }: { deckId: string }) {
     const rows = bulk
       .split('\n')
       .map((line) => line.split('|').map((p) => p.trim()))
-      .filter((parts) => parts.length >= 2 && parts[0] && parts[1])
-      .map((parts) => ({ front: parts[0], back: parts[1], topic: parts[2] || 'General' }))
+      .flatMap(([front, back, topic]) =>
+        front && back ? [{ front, back, topic: topic || 'General' }] : [],
+      )
     if (rows.length === 0) return
     store.addCards(deckId, rows, 'human')
     setBulk('')

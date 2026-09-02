@@ -45,6 +45,7 @@ export default function App() {
 
   const hasSession = state.session !== null
   const pending = state.requests.find((r) => r.status === 'pending')
+  const currentReplayStep = replayStep === null ? undefined : REPLAY_STEPS[replayStep]
 
   useEffect(() => {
     let cancelled = false
@@ -112,9 +113,9 @@ export default function App() {
               <div style={{ height: 16 }} />
             </>
           ) : null}
-          {replayStep !== null ? (
+          {currentReplayStep ? (
             <>
-              <ReplayBar index={replayStep} step={REPLAY_STEPS[replayStep]} onStop={stopReplay} />
+              <ReplayBar index={replayStep ?? 0} step={currentReplayStep} onStop={stopReplay} />
               <div style={{ height: 16 }} />
             </>
           ) : null}

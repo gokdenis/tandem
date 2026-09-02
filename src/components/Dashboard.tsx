@@ -3,10 +3,11 @@ import { useAppState } from '../core/useStore'
 import { store, dateKey } from '../core/store'
 import { DAY, isDue, difficulty } from '../core/srs'
 import { CardManager } from './CardManager'
+import { useNow } from '../core/useNow'
 
 const heat = (d: number) => (d > 0.6 ? 'var(--bad)' : d > 0.35 ? 'var(--warn)' : 'var(--good)')
 
-function Stat({ value, label, tone }: { value: string; label: string; tone?: string }) {
+function Stat({ value, label, tone }: { value: string; label: string; tone?: string | undefined }) {
   return (
     <div className="stat">
       <div className="stat-value" style={tone ? { color: tone } : undefined}>
@@ -17,8 +18,9 @@ function Stat({ value, label, tone }: { value: string; label: string; tone?: str
   )
 }
 
-export function Dashboard({ onReplay }: { onReplay?: () => void }) {
+export function Dashboard({ onReplay }: { onReplay?: (() => void) | undefined }) {
   const state = useAppState()
+  const now = useNow(60_000)
   const [selected, setSelected] = useState(state.decks[0]?.id ?? '')
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
@@ -41,7 +43,7 @@ export function Dashboard({ onReplay }: { onReplay?: () => void }) {
   const due = cards.filter((c) => isDue(c)).length
   const weak = store.weakTopics(deck.id)
   const plan = state.plan.filter((p) => p.deckId === deck.id)
-  const days = deck.examAt ? Math.ceil((deck.examAt - Date.now()) / DAY) : null
+  const days = deck.examAt ? Math.ceil((deck.examAt - now) / DAY) : null
   const annotated = store.annotated(deck.id)
   const helping = annotated.filter((a) => a.impact.verdict === 'helping').length
   const notLanding = annotated.filter((a) => a.impact.verdict === 'not landing').length
@@ -159,7 +161,7 @@ export function Dashboard({ onReplay }: { onReplay?: () => void }) {
             {plan.map((b) => (
               <label key={b.id} className={b.done ? 'plan-block done' : 'plan-block'}>
                 <input type="checkbox" checked={b.done} onChange={() => store.togglePlanBlock(b.id, 'human')} />
-                <span className="d">{b.date === dateKey(Date.now()) ? 'today' : b.date.slice(5)}</span>
+                <span className="d">{b.date === dateKey(now) ? 'today' : b.date.slice(5)}</span>
                 <span>{b.topics.join(' + ')}</span>
                 <span className="m">{b.minutes} min</span>
               </label>

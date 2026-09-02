@@ -9,6 +9,13 @@ const call = (name: string, args: Record<string, unknown> = {}) => {
 }
 const text = (r: Awaited<ReturnType<typeof call>>) => r.content.map((c) => c.text).join('\n')
 
+/** Fails the test rather than silently working on undefined. */
+function firstCard() {
+  const card = store.getSnapshot().cards[0]
+  if (!card) throw new Error('the seeded workspace has no cards')
+  return card
+}
+
 beforeEach(() => {
   store.reset('human')
 })
@@ -63,7 +70,7 @@ describe('recoverable failures', () => {
 describe('deleting a card', () => {
   it('only asks, and leaves the card in place until a human answers', async () => {
     const before = store.getSnapshot().cards.length
-    const target = store.getSnapshot().cards[0]
+    const target = firstCard()
 
     const asked = await call('delete_card', { cardId: target.id, reason: 'duplicate' })
     expect(asked.isError).toBeUndefined()
@@ -80,7 +87,7 @@ describe('deleting a card', () => {
 
   it('leaves the card alone when the student denies', async () => {
     const before = store.getSnapshot().cards.length
-    const target = store.getSnapshot().cards[0]
+    const target = firstCard()
     const asked = await call('delete_card', { cardId: target.id })
     const requestId = (asked.structuredContent as { requestId: string }).requestId
     store.resolveRequest(requestId, false)
@@ -92,7 +99,7 @@ describe('the study loop', () => {
   it('ranks weak topics from history, then drills them in that order', async () => {
     const weak = await call('get_weak_topics', { deck: 'Operating Systems' })
     const topics = (weak.structuredContent as { topics: Array<{ topic: string }> }).topics
-    expect(topics[0].topic).toBe('Deadlock')
+    expect(topics[0]?.topic).toBe('Deadlock')
 
     await call('start_session', { deck: 'Operating Systems', mode: 'weak', limit: 4 })
     expect(store.currentCard()?.topic).toBe('Deadlock')

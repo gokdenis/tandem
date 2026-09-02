@@ -10,9 +10,9 @@ export type Card = {
   /** Sub-topic tag inside the deck. Drives weak-spot analytics. */
   topic: string
   /** An explanation or mnemonic. Usually written by the agent after a miss. */
-  note?: string
+  note?: string | undefined
   /** When the current note was attached. Lets us measure whether it actually helped. */
-  noteAddedAt?: number
+  noteAddedAt?: number | undefined
   /* --- spaced repetition state --- */
   ease: number
   interval: number
@@ -58,11 +58,11 @@ export type Activity = {
   id: string
   at: number
   actor: Actor
-  tool?: string
+  tool?: string | undefined
   message: string
 }
 
-export type Focus = { cardId?: string; topic?: string; reason?: string } | null
+export type Focus = { cardId?: string | undefined; topic?: string | undefined; reason?: string | undefined } | null
 
 /**
  * A destructive action an agent has asked for and the student has not answered

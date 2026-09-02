@@ -222,7 +222,12 @@ export const tools: ToolDescriptor[] = [
       const list = Array.isArray(cards) ? (cards as Array<Record<string, string>>) : []
       const clean = list
         .filter((c) => c && String(c.front ?? '').trim() && String(c.back ?? '').trim())
-        .map((c) => ({ front: String(c.front), back: String(c.back), topic: c.topic, note: c.note }))
+        .map((c) => ({
+          front: String(c.front),
+          back: String(c.back),
+          ...(c.topic === undefined ? {} : { topic: String(c.topic) }),
+          ...(c.note === undefined ? {} : { note: String(c.note) }),
+        }))
       if (clean.length === 0) return fail('No usable cards. Each card needs a non-empty front and back.')
       const made = store.addCards(r.deck.id, clean, AGENT, 'add_cards')
       return ok(`Added ${made.length} card${made.length === 1 ? '' : 's'} to “${r.deck.name}”. They are due immediately.`, {
@@ -329,9 +334,18 @@ export const tools: ToolDescriptor[] = [
       }
       const t = Date.parse(`${raw}T09:00:00`)
       if (Number.isNaN(t)) return fail(`Could not read “${date}” as a date. Use YYYY-MM-DD.`)
-      store.setExam(r.deck.id, t, AGENT, 'set_exam_date')
       const days = Math.ceil((t - Date.now()) / DAY)
-      return ok(`Exam for “${r.deck.name}” set to ${dateKey(t)}, ${days} day${days === 1 ? '' : 's'} away.`)
+      if (days < 0) {
+        // Almost always a wrong year. Reporting "-2436 days away" and planning
+        // around it would just pass the mistake on to the student.
+        return fail(
+          `${dateKey(t)} is in the past. Today is ${dateKey(Date.now())}. Check the year with the student and call again.`,
+        )
+      }
+      store.setExam(r.deck.id, t, AGENT, 'set_exam_date')
+      return ok(
+        `Exam for “${r.deck.name}” set to ${dateKey(t)}, ${days === 0 ? 'today' : `${days} day${days === 1 ? '' : 's'} away`}.`,
+      )
     },
   },
 
@@ -368,18 +382,19 @@ export const tools: ToolDescriptor[] = [
         cards = cards.filter((c) => c.topic.toLowerCase() === t.toLowerCase())
         if (cards.length === 0)
           return fail(`No cards in topic “${t}”. Topics in this deck: ${[...store.topicsOf(r.deck.id).keys()].join(', ')}.`)
-        label = `topic: ${cards[0].topic}`
+        label = `topic: ${cards[0]!.topic}`
       } else {
         cards = [...cards].sort(() => Math.random() - 0.5)
         label = 'full deck, shuffled'
       }
 
       const queue = cards.slice(0, max)
-      if (queue.length === 0) return fail('Nothing to study with that filter. Try mode "all" or "weak".')
+      const [first] = queue
+      if (!first) return fail('Nothing to study with that filter. Try mode "all" or "weak".')
       store.startSession(r.deck.id, queue.map((c) => c.id), label, AGENT, 'start_session')
       return ok(
-        `Started a ${queue.length}-card session on “${r.deck.name}” (${label}). The first card is on screen now: "${queue[0].front}".`,
-        { queued: queue.length, first: brief(queue[0]) },
+        `Started a ${queue.length}-card session on “${r.deck.name}” (${label}). The first card is on screen now: "${first.front}".`,
+        { queued: queue.length, first: brief(first) },
       )
     },
   },
@@ -475,7 +490,11 @@ export const tools: ToolDescriptor[] = [
       }
       if (cardId && !store.card(String(cardId))) return fail(`No card with id ${cardId}.`)
       store.setFocus(
-        { topic: topic ? String(topic) : undefined, cardId: cardId ? String(cardId) : undefined, reason: reason ? String(reason) : undefined },
+        {
+          ...(topic ? { topic: String(topic) } : {}),
+          ...(cardId ? { cardId: String(cardId) } : {}),
+          ...(reason ? { reason: String(reason) } : {}),
+        },
         AGENT,
         'highlight',
       )
@@ -541,11 +560,17 @@ export const tools: ToolDescriptor[] = [
       const r = needDeck(deck)
       if (!r.found) return fail(r.error)
       if (!r.deck.examAt) return fail(`“${r.deck.name}” has no exam date. Call set_exam_date first.`)
+      if (r.deck.examAt < Date.now()) {
+        return fail(
+          `The exam date on “${r.deck.name}” (${dateKey(r.deck.examAt)}) has already passed, so there is nothing to plan. Set a new one first.`,
+        )
+      }
 
       const minutes = Math.max(10, Math.min(240, Number(minutesPerDay) || 40))
       const days = Math.max(1, Math.min(30, Math.ceil((r.deck.examAt - Date.now()) / DAY)))
       const weak = store.weakTopics(r.deck.id)
-      if (weak.length === 0) return fail('That deck has no cards yet.')
+      const [weakest] = weak
+      if (!weakest) return fail('That deck has no cards yet.')
 
       // Weight each topic by difficulty, then deal topics across days so that the
       // hardest ones recur most often and nothing goes untouched.
@@ -563,14 +588,14 @@ export const tools: ToolDescriptor[] = [
         while (topics.length < perDay && slots.length) {
           const t = slots[cursor % slots.length]
           cursor++
-          if (!topics.includes(t)) topics.push(t)
+          if (t !== undefined && !topics.includes(t)) topics.push(t)
           if (cursor > slots.length * 3) break
         }
         blocks.push({
           id: uid('plan'),
           date: dateKey(Date.now() + d * DAY),
           deckId: r.deck.id,
-          topics: topics.length ? topics : [weak[0].topic],
+          topics: topics.length ? topics : [weakest.topic],
           minutes: d === days - 1 ? Math.round(minutes * 1.5) : minutes,
           done: false,
         })
@@ -579,7 +604,7 @@ export const tools: ToolDescriptor[] = [
       store.setPlan(blocks, AGENT, 'plan_revision')
       const text = blocks.map((b) => `${b.date} · ${b.minutes} min · ${b.topics.join(' + ')}`).join('\n')
       return ok(
-        `Planned ${days} days to the exam for “${r.deck.name}”, weighted toward ${weak[0].topic}. The last day is a full sweep.\n${text}`,
+        `Planned ${days} days to the exam for “${r.deck.name}”, weighted toward ${weakest.topic}. The last day is a full sweep.\n${text}`,
         { blocks },
       )
     },

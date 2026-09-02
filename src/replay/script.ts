@@ -56,9 +56,8 @@ export async function runReplay(onStep: (index: number) => void, signal: AbortSi
   store.reset('replay')
   store.setActorOverride('replay')
   try {
-    for (let i = 0; i < REPLAY_STEPS.length; i++) {
+    for (const [i, step] of REPLAY_STEPS.entries()) {
       if (signal.aborted) return
-      const step = REPLAY_STEPS[i]
       onStep(i)
       await wait(step.pause ?? 2400, signal)
       if (signal.aborted) return
