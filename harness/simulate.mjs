@@ -36,6 +36,9 @@ const shim = () => {
 
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1440, height: 940 } })
+if (process.env.THEME === 'dark' || process.env.THEME === 'light') {
+  await page.emulateMedia({ colorScheme: process.env.THEME })
+}
 page.on('console', (m) => {
   if (m.type() === 'error') console.log('  [console error]', m.text())
 })
@@ -44,6 +47,39 @@ page.on('pageerror', (e) => console.log('  [page error]', e.message))
 await page.addInitScript(shim)
 await page.goto(URL, { waitUntil: 'networkidle' })
 await page.waitForTimeout(600)
+
+console.log('\n=== first-run tour ===')
+const onboarding = page.getByRole('dialog')
+if (!(await onboarding.isVisible())) throw new Error('The first-run tour did not open')
+console.log('  first visit opens the tour')
+if (shots) {
+  await page.screenshot({ path: 'harness/onboarding.png', fullPage: false })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.waitForTimeout(200)
+  await page.screenshot({ path: 'harness/onboarding-mobile.png', fullPage: false })
+  await page.setViewportSize({ width: 1440, height: 940 })
+}
+await page.getByRole('button', { name: 'Next' }).click()
+await page.getByRole('heading', { name: 'No screenshots. No guessing.' }).waitFor()
+if (shots) await page.screenshot({ path: 'harness/onboarding-agent.png', fullPage: false })
+await page.getByRole('button', { name: 'Next' }).click()
+if (shots) await page.screenshot({ path: 'harness/onboarding-control.png', fullPage: false })
+await page.getByRole('button', { name: 'Explore the board' }).click()
+if (await onboarding.isVisible()) throw new Error('The tour did not close after its final step')
+if ((await page.evaluate(() => localStorage.getItem('tandem.onboarding.v1'))) !== 'complete') {
+  throw new Error('The completed tour was not remembered')
+}
+await page.getByRole('button', { name: 'How it works' }).click()
+await page.getByRole('heading', { name: 'Study what needs you now.' }).waitFor()
+await page.keyboard.press('Escape')
+if (await onboarding.isVisible()) throw new Error('Escape did not close the reopened tour')
+console.log('  navigation, persistence, reopening, and Escape all work')
+if (shots) {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.waitForTimeout(200)
+  await page.screenshot({ path: 'harness/dashboard-mobile.png', fullPage: false })
+  await page.setViewportSize({ width: 1440, height: 940 })
+}
 
 const call = async (name, args) => {
   const r = await page.evaluate(([n, a]) => window.__mcp.call(n, a), [name, args ?? {}])

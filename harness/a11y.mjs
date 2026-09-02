@@ -1,8 +1,8 @@
 /**
- * Automated accessibility scan. Runs axe-core against the three states the app
- * can be in: dashboard, an active study session, and a pending permission
- * request. Catches roughly the third of WCAG issues a machine can see; the
- * rest still needs a keyboard and a screen reader.
+ * Automated accessibility scan. Runs axe-core against the first-run tour,
+ * dashboard, an active study session, and a pending permission request.
+ * Catches roughly the third of WCAG issues a machine can see; the rest still
+ * needs a keyboard and a screen reader.
  */
 import { readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
@@ -36,17 +36,33 @@ await page.addInitScript(shim)
 await page.goto(URL, { waitUntil: 'networkidle' })
 await page.waitForTimeout(600)
 
+const onboarding = page.getByRole('dialog')
+const dismissOnboarding = async () => {
+  if (await onboarding.isVisible()) await page.getByRole('button', { name: 'Skip tour' }).click()
+}
+
 const states = [
+  ['onboarding', async () => {
+    if (!(await onboarding.isVisible())) {
+      const keepButton = page.getByRole('button', { name: 'Keep it' })
+      if (await keepButton.isVisible()) await keepButton.click()
+      await page.evaluate(() => window.__mcp.call('end_session'))
+      await page.getByRole('button', { name: 'How it works' }).click()
+    }
+  }],
   ['dashboard', async () => {
+    await dismissOnboarding()
     const keepButton = page.getByRole('button', { name: 'Keep it' })
-    if (await keepButton.count()) await keepButton.click()
+    if (await keepButton.isVisible()) await keepButton.click()
     await page.evaluate(() => window.__mcp.call('end_session'))
   }],
   ['study session', async () => {
+    await dismissOnboarding()
     await page.evaluate(() => window.__mcp.call('start_session', { deck: 'Operating Systems', mode: 'weak', limit: 5 }))
     await page.evaluate(() => window.__mcp.call('reveal_answer'))
   }],
   ['permission request', async () => {
+    await dismissOnboarding()
     await page.evaluate(() => window.__mcp.call('end_session'))
     const id = await page.evaluate(async () => (await window.__mcp.call('search_cards', { query: 'thrashing' })).structuredContent.matches[0].id)
     await page.evaluate((cardId) => window.__mcp.call('delete_card', { cardId, reason: 'duplicate' }), id)
