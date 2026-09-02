@@ -36,6 +36,8 @@ only on a confirmation the student has to make.
 | `.impact` | `good`, `bad`, neutral | none |
 | `.badge` | `human`, `agent`, `replay` | none |
 | `.feed-item` | `human`, `agent`, `replay` | none |
+| `.focus-tag` | none | shown beside a topic or card selected by the agent |
+| `.card-row` | default, `editing` | `focused` when a card or its topic is highlighted |
 | `.stat` | none | none |
 | Inputs | text, `narrow`, textarea, select | focus, placeholder |
 
@@ -63,23 +65,25 @@ restoring the sample decks leaves the appearance alone.
 
 The light palette is not the dark one lightened. Accents are re-picked for a
 white ground: the dark theme's `#34d399` measures 1.7:1 on white, so the light
-theme uses `#047857`, and the same is true of the violet, amber and red. What
-does not change is what each colour means.
+theme uses `#047857` for solid green controls and `#065f46` for green text on
+tinted surfaces. The same contrast-first treatment applies to violet, amber
+and red. What does not change is what each colour means.
 
 An agent cannot change the theme. The tool surface is about the student's study
 state, and how their screen looks is not part of it.
 
 ## Accessibility
 
-- Every text and background pair in use clears 4.5:1. The audit that produced
-  this system found `--dim` at 3.4:1 and the withdrawn tool chips faded to an
-  unreadable 2:1; both were fixed rather than waived.
+- Every text and background pair in use clears 4.5:1. The audits that produced
+  this system found `--dim` at 3.4:1, withdrawn tool chips faded to an
+  unreadable 2:1, and the light-theme human badge below AA; all were fixed
+  rather than waived.
 - State is never carried by colour alone. Withdrawn tools also take a dashed
   border and a hatch, difficulty bars are `role="meter"` with a value, and the
   session progress bar is a `role="progressbar"`.
 - `harness/a11y.mjs` runs axe-core over the dashboard, an active session and a
   pending permission request, in both themes. It exits non-zero on any
-  violation. Adding the light theme is how the destructive button's ink and the
-  activity feed's missing keyboard access were found.
+  violation. It starts and stops its own local Vite server, so local and CI runs
+  exercise the same six state/theme combinations.
 - Focus is visible everywhere through one `:focus-visible` rule, there is a
   skip link to the board, and coarse pointers get larger hit areas.
