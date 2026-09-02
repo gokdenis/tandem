@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc -b
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npx vite build
+
+      - name: Agent simulation
+        run: |
+          npm i -D playwright
+          npx playwright install --with-deps chromium
+          npx vite preview --port 4173 &
+          npx wait-on http://localhost:4173 || sleep 5
+          URL=http://localhost:4173/ node harness/simulate.mjs

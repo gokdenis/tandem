@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "simulate": "node harness/simulate.mjs"
+    "simulate": "node harness/simulate.mjs",
+    "test": "vitest run",
+    "check": "tsc -b && vitest run && vite build"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -21,7 +23,8 @@
     "@vitejs/plugin-react": "^6.1.0",
     "oxlint": "^1.79.0",
     "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   },
   "description": "A spaced-repetition study board that exposes its own state as WebMCP tools, so you and your agent study the same board together.",
   "license": "MIT"
