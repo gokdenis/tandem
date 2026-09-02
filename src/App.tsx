@@ -16,6 +16,8 @@ import { ActivityFeed } from './components/ActivityFeed'
 import { ToolsPanel } from './components/ToolsPanel'
 import { ReplayBar } from './components/ReplayBar'
 import { ApprovalPrompt } from './components/ApprovalPrompt'
+import { StorageNotice } from './components/StorageNotice'
+import { StaleTabNotice } from './components/StaleTabNotice'
 import { REPLAY_STEPS, runReplay } from './replay/script'
 
 export default function App() {
@@ -46,6 +48,7 @@ export default function App() {
   const hasSession = state.session !== null
   const pending = state.requests.find((r) => r.status === 'pending')
   const currentReplayStep = replayStep === null ? undefined : REPLAY_STEPS[replayStep]
+  const storage = state.storage
 
   useEffect(() => {
     let cancelled = false
@@ -107,6 +110,18 @@ export default function App() {
       <Header status={status} exposed={activeTools(hasSession).length} registered={registered} />
       <div className="body">
         <main className="main" id="workspace" aria-label="Study board">
+          {state.staleTab ? (
+            <>
+              <StaleTabNotice />
+              <div style={{ height: 16 }} />
+            </>
+          ) : null}
+          {storage !== 'ok' ? (
+            <>
+              <StorageNotice status={storage} />
+              <div style={{ height: 16 }} />
+            </>
+          ) : null}
           {pending ? (
             <>
               <ApprovalPrompt request={pending} />
