@@ -1,0 +1,63 @@
+<evaluation>
+  <!--
+    Ten questions that can only be answered by using Tandem's tool surface, in
+    the shape the mcp-builder guidance asks for: independent, read only,
+    requiring more than one call, and with a single answer that survives being
+    compared as a string.
+
+    Each answer is checked against the seeded workspace by
+    src/tools/__tests__/evals.test.ts, so a change to the tools or the seed
+    that would invalidate a question fails the build instead of quietly
+    rotting.
+  -->
+
+  <qa_pair>
+    <question>Across the whole workspace, which topic has the highest lapse count, and how many lapses does it have? Answer as "Topic: N".</question>
+    <answer>Deadlock: 6</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>The student's agent has attached explanations to some cards. Exactly one of those explanations has not reduced the miss rate at all. Which topic is that card in?</question>
+    <answer>Deadlock</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>One attached explanation has worked. What was the student's miss rate on that card after the note was added, written as "misses/reviews"?</question>
+    <answer>0/3</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Only one deck has an exam date. How many days away is it, and how many cards does that deck hold? Answer as "N days, M cards".</question>
+    <answer>9 days, 14 cards</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>How many cards anywhere in the workspace mention deadlock in their question, answer, topic or attached note?</question>
+    <answer>4</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Find the card that asks why a TLB miss is expensive. Which topic is it filed under?</question>
+    <answer>Virtual memory</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>How many topics does the deck without an exam date contain?</question>
+    <answer>3</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>In the deck with an exam date, how many cards are in its second weakest topic?</question>
+    <answer>3</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Two topics in the exam deck have never been missed and share the same difficulty score. Name them alphabetically, separated by ", ".</question>
+    <answer>Scheduling, Virtual memory</answer>
+  </qa_pair>
+
+  <qa_pair>
+    <question>Counting every deck, how many cards are due for review right now?</question>
+    <answer>18</answer>
+  </qa_pair>
+</evaluation>

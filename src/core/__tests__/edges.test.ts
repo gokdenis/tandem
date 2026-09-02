@@ -78,6 +78,26 @@ describe('edges that used to break', () => {
 })
 
 describe('bounds under load', () => {
+  it('pages search results and refuses an offset past the end', async () => {
+    await call('add_cards', {
+      deck: 'Operating',
+      cards: Array.from({ length: 30 }, (_, i) => ({ front: `paging probe ${i}`, back: 'x' })),
+    })
+    const first = await call('search_cards', { query: 'paging probe', limit: 10 })
+    const p1 = first.structuredContent as { total: number; count: number; hasMore: boolean; nextOffset: number | null }
+    expect(p1.total).toBe(30)
+    expect(p1.count).toBe(10)
+    expect(p1.hasMore).toBe(true)
+    expect(p1.nextOffset).toBe(10)
+
+    const last = await call('search_cards', { query: 'paging probe', limit: 10, offset: 20 })
+    expect((last.structuredContent as { hasMore: boolean }).hasMore).toBe(false)
+
+    const past = await call('search_cards', { query: 'paging probe', offset: 999 })
+    expect(past.isError).toBe(true)
+    expect(text(past)).toContain('past the end')
+  })
+
   it('tells the agent how many cards it did not add', async () => {
     const r = await call('add_cards', {
       deck: 'Operating',
@@ -100,9 +120,17 @@ describe('bounds under load', () => {
       cards: Array.from({ length: 400 }, (_, i) => ({ front: `question ${i}`, back: `answer ${i}` })),
     })
     const r = await call('get_deck', { deck: 'Operating' })
-    const payload = r.structuredContent as { total: number; returned: number; omitted: number }
-    expect(payload.returned).toBeLessThanOrEqual(60)
-    expect(payload.omitted).toBeGreaterThan(0)
+    const payload = r.structuredContent as { total: number; count: number; hasMore: boolean; nextOffset: number | null }
+    expect(payload.count).toBeLessThanOrEqual(60)
+    expect(payload.hasMore).toBe(true)
+    expect(payload.nextOffset).toBe(payload.count)
     expect(text(r)).toContain('not shown')
+
+    // The next page must continue where the first one stopped.
+    const next = await call('get_deck', { deck: 'Operating', offset: payload.nextOffset ?? 0 })
+    const second = next.structuredContent as { offset: number; cards: Array<{ id: string }> }
+    expect(second.offset).toBe(payload.count)
+    const firstIds = new Set((r.structuredContent as { cards: Array<{ id: string }> }).cards.map((c) => c.id))
+    expect(second.cards.some((c) => firstIds.has(c.id))).toBe(false)
   })
 })
