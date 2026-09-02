@@ -275,3 +275,65 @@ input, textarea, select { font: inherit; color: inherit; }
 
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .sep { height: 1px; background: var(--line-soft); margin: 16px 0; }
+
+/* ------------------------------------------------------------ forms/inputs */
+input, textarea {
+  background: #10131a;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 8px 11px;
+  font-size: 13.5px;
+  color: var(--text);
+  min-width: 0;
+}
+input::placeholder, textarea::placeholder { color: #4d5566; }
+input:focus, textarea:focus { outline: none; border-color: #3a4557; background: #12161e; }
+textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height: 1.5; }
+
+.form { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.form > input { flex: 1; }
+.form > input.narrow { flex: 0 0 152px; }
+.form.vertical { flex-direction: column; align-items: stretch; }
+.form code {
+  font-family: var(--mono); font-size: 11.5px;
+  background: rgba(0,0,0,.35); padding: 1px 5px; border-radius: 4px; color: #b9c2d4;
+}
+
+.btn.danger { color: #e08a8a; }
+.btn.danger:hover { border-color: rgba(248,113,113,.45); color: #f8a5a5; }
+
+/* -------------------------------------------------------------- card rows */
+.card-list { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+
+.card-row {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 11px 10px; border-bottom: 1px solid var(--line-soft);
+}
+.card-row:last-of-type { border-bottom: none; }
+.card-row .grow { flex: 1; min-width: 0; }
+.card-row .q { font-size: 13.5px; }
+.card-row .a { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.card-row .tag {
+  font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--dim);
+  border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; margin-right: 8px;
+}
+.card-row.editing { display: grid; grid-template-columns: 1fr 1fr 152px auto; gap: 8px; align-items: center; }
+
+.row-note {
+  margin-top: 7px; font-size: 12.5px; color: #cfc6ee;
+  border-left: 2px solid var(--agent); background: rgba(167,139,250,.07);
+  padding: 8px 11px; border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+.row-note .who { display: block; font-size: 10.5px; color: var(--agent); letter-spacing: .03em; margin-bottom: 2px; }
+
+/* ------------------------------------------------------------ note impact */
+.impact {
+  display: inline-block; margin-top: 6px;
+  font-size: 11px; padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted);
+}
+.impact.good { border-color: rgba(52,211,153,.4); color: #7fe7be; background: rgba(52,211,153,.08); }
+.impact.bad { border-color: rgba(248,113,113,.4); color: #f2a3a3; background: rgba(248,113,113,.08); }
+
+/* --------------------------------------------------- withdrawn tool chips */
+.tool.off { opacity: .34; border-style: dashed; }

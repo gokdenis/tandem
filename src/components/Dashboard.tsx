@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAppState } from '../core/useStore'
 import { store, dateKey } from '../core/store'
 import { DAY, isDue, difficulty } from '../core/srs'
+import { CardManager } from './CardManager'
 
 const heat = (d: number) =>
   d > 0.6 ? 'var(--bad)' : d > 0.35 ? 'var(--warn)' : 'var(--good)'
@@ -9,6 +10,9 @@ const heat = (d: number) =>
 export function Dashboard() {
   const state = useAppState()
   const [selected, setSelected] = useState(state.decks[0]?.id ?? '')
+  const [creating, setCreating] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newDesc, setNewDesc] = useState('')
   const deckId = state.decks.some((d) => d.id === selected) ? selected : state.decks[0]?.id
   const deck = deckId ? store.deck(deckId) : undefined
 
@@ -40,7 +44,30 @@ export function Dashboard() {
       <section className="panel">
         <div className="panel-head">
           <h2>Decks</h2>
+          <div className="spacer" />
+          <button className="btn sm" onClick={() => setCreating(!creating)}>
+            {creating ? 'Cancel' : 'New deck'}
+          </button>
         </div>
+        {creating ? (
+          <div className="form" style={{ marginBottom: 14 }}>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Deck name" />
+            <input value={newDesc} onChange={(e) => setNewDesc(e.target.value)} placeholder="What it covers" />
+            <button
+              className="btn sm primary"
+              onClick={() => {
+                if (!newName.trim()) return
+                const deck = store.createDeck(newName.trim(), newDesc.trim(), 'human')
+                setSelected(deck.id)
+                setNewName('')
+                setNewDesc('')
+                setCreating(false)
+              }}
+            >
+              Create
+            </button>
+          </div>
+        ) : null}
         <div className="decks">
           {state.decks.map((d) => (
             <button
@@ -76,10 +103,37 @@ export function Dashboard() {
             Study {due} due
           </button>
         </div>
-        <p className="hint">
-          {deck.description}
-          {days !== null ? ` · exam ${dateKey(deck.examAt!)}, ${days} day${days === 1 ? '' : 's'} away` : ''}
-        </p>
+        <p className="hint">{deck.description}</p>
+
+        <div className="form" style={{ marginTop: 12 }}>
+          <label className="hint" htmlFor="exam">
+            Exam date
+          </label>
+          <input
+            id="exam"
+            type="date"
+            className="narrow"
+            value={deck.examAt ? dateKey(deck.examAt) : ''}
+            onChange={(e) =>
+              store.setExam(deck.id, e.target.value ? Date.parse(`${e.target.value}T09:00:00`) : null, 'human')
+            }
+          />
+          <span className="hint">
+            {days !== null ? `${days} day${days === 1 ? '' : 's'} away` : 'not set'}
+          </span>
+          <div className="spacer" />
+          <button
+            className="btn sm ghost danger"
+            onClick={() => {
+              if (state.decks.length <= 1) return
+              store.deleteDeck(deck.id, 'human')
+              setSelected(state.decks.find((d) => d.id !== deck.id)?.id ?? '')
+            }}
+            title={state.decks.length <= 1 ? 'Keep at least one deck' : 'Delete this deck and its cards'}
+          >
+            Delete deck
+          </button>
+        </div>
 
         <div className="sep" />
 
@@ -107,6 +161,8 @@ export function Dashboard() {
           )
         })}
       </section>
+
+      <CardManager deckId={deck.id} />
 
       {plan.length > 0 ? (
         <section className="panel">
