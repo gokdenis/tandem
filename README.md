@@ -98,7 +98,7 @@ Click **Watch a replay** on the dashboard. It runs a scripted walkthrough throug
 ## Tests
 
 ```bash
-npm test      # 36 tests: scheduler, note impact, tool surface, dates, edges, invariants
+npm test      # 46 tests: scheduler, note impact, tool surface, dates, edges, invariants, evals
 npm run check # lint, typecheck, tests and a production build
 npm run a11y  # axe-core over the dashboard, a session and a permission request
 ```
@@ -164,6 +164,23 @@ npm run simulate
 - degrades to a no-op when WebMCP is absent, so the app is never broken by its own integration
 
 Tool executors read live state at call time instead of closing over a snapshot, so tools are registered exactly once and never go stale.
+
+### Audited against the MCP guidance
+
+The surface was reviewed against Anthropic's MCP server best practices, which turned up four things worth changing and one worth deciding against.
+
+- **Pagination metadata.** `search_cards` and `get_deck` now return `total`, `count`, `offset`, `hasMore` and `nextOffset`, and say in prose how to fetch the next page. An offset past the end is an error that names the real total rather than an empty result an agent might read as "nothing there".
+- **`openWorldHint: false` on every tool.** Nothing here reaches a network. Results are reproducible and the workspace never leaves the browser, and an agent is entitled to know that.
+- **Annotations that cannot cost a tool.** The specification's descriptor is name, description, inputSchema and execute. Behaviour annotations are standard MCP and worth sending, but a host that validates strictly would reject the whole tool over a field it does not recognise, so registration retries once without them. Losing an annotation beats losing a tool.
+- **Failures stay inside the tool.** An executor that throws would otherwise hand the browser an exception and leave the agent nothing to act on.
+
+**No service prefix, deliberately.** The guidance asks for `service_action_resource` naming because stdio MCP servers land in one flat list where `send_message` could belong to anyone. WebMCP is not that: the browser knows which origin registered which tool, and the spec's `RegisteredTool` carries `origin` and `window`. Prefixing every name with `tandem_` would add tokens to every call to solve a collision the platform already handles.
+
+### An evaluation set for the tools
+
+[`evals/tool-surface.xml`](./evals/tool-surface.xml) holds ten questions in the format the MCP guidance describes: independent, read only, each needing more than one call, each with one answer that survives string comparison. "Which topic has the highest lapse count", "exactly one attached explanation has not reduced the miss rate, which topic is that card in", "how many cards are due across every deck".
+
+They are not decoration. `src/tools/__tests__/evals.test.ts` derives every one of those answers through the tools, so a change to a tool or to the seeded workspace that would invalidate a question fails the build rather than being found by whoever runs the evaluation.
 
 ## Design notes worth knowing
 
