@@ -1,7 +1,7 @@
 import { tools, SESSION_ONLY, IDLE_ONLY } from '../tools'
 import { useAppState } from '../core/useStore'
 
-export function ToolsPanel({ hasSession }: { hasSession: boolean }) {
+export function ToolsPanel({ hasSession, connected }: { hasSession: boolean; connected: boolean }) {
   const { activity } = useAppState()
   const recent = new Set(activity.slice(0, 6).map((a) => a.tool).filter(Boolean) as string[])
 
@@ -14,9 +14,11 @@ export function ToolsPanel({ hasSession }: { hasSession: boolean }) {
         <h2>Tools this page exposes</h2>
       </div>
       <p className="hint" style={{ marginBottom: 12 }}>
-        Registered on <code style={{ fontFamily: 'var(--mono)', fontSize: 11.5 }}>modelContext</code>. The surface is not
-        fixed: session controls are registered only while a card is on screen and withdrawn when it is not, so an agent is
-        never offered a control it cannot use.
+        {connected ? 'Registered on ' : 'These would be registered on '}
+        <code style={{ fontFamily: 'var(--mono)', fontSize: 11.5 }}>modelContext</code>
+        {connected ? '. ' : ' once an agent is attached. '}
+        The surface is not fixed: session controls are registered only while a card is on screen and withdrawn when it is
+        not, so an agent is never offered a control it cannot use.
       </p>
       <div className="tools">
         {tools.map((t) => {
@@ -33,7 +35,9 @@ export function ToolsPanel({ hasSession }: { hasSession: boolean }) {
         })}
       </div>
       <p className="hint" style={{ marginTop: 12 }}>
-        Dimmed tools are currently withdrawn from the browser.
+        {connected
+          ? 'Dimmed tools are currently withdrawn from the browser.'
+          : 'Dimmed tools would be withdrawn in the current state.'}
       </p>
     </section>
   )

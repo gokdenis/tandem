@@ -22,7 +22,7 @@ const shim = () => {
   Object.defineProperty(document, 'modelContext', { value: api, configurable: true })
   window.__mcp = {
     names: () => [...registry.keys()],
-    schemas: () => [...registry.values()].map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
+    schemas: () => [...registry.values()].map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations })),
     call: async (name, args = {}) => {
       const tool = registry.get(name)
       if (!tool) return { missing: name }
@@ -64,6 +64,7 @@ for (const s of schemas) {
   if (!/^[a-z][a-z0-9_]*$/.test(s.name)) problems.push('name not snake_case')
   if (!s.description || s.description.length < 40) problems.push('description too thin')
   if (!s.inputSchema || s.inputSchema.type !== 'object') problems.push('inputSchema not an object schema')
+  if (!s.annotations || typeof s.annotations.readOnlyHint !== 'boolean') problems.push('missing behaviour annotations')
   for (const req of s.inputSchema?.required ?? []) {
     if (!s.inputSchema.properties?.[req]) problems.push(`required "${req}" missing from properties`)
   }
@@ -106,6 +107,11 @@ await call('get_deck', { deck: 'Quantum Basketry' })
 await call('grade_current_card', { grade: 'good' })
 await call('start_session', { deck: 'Polish', mode: 'topic', topic: 'Nonexistent' })
 await call('annotate_card', { cardId: 'nope', note: 'x' })
+const firstCard = (await call('search_cards', { query: 'thrashing' })).structured?.matches?.[0]?.id
+if (firstCard) {
+  await call('delete_card', { cardId: firstCard })
+  await call('delete_card', { cardId: firstCard, confirm: true })
+}
 
 if (shots) {
   await page.screenshot({ path: 'harness/dashboard.png', fullPage: false })

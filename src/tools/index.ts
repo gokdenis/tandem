@@ -268,11 +268,23 @@ export const tools: ToolDescriptor[] = [
 
   {
     name: 'delete_card',
-    description: 'Permanently remove a card, e.g. a duplicate or one the student says is wrong. Confirm with the student first.',
-    inputSchema: obj({ cardId: str('Card id.') }, ['cardId']),
-    execute: ({ cardId }) => {
+    description:
+      'Permanently remove a card, for example a duplicate or one the student says is wrong. This cannot be undone and the card takes its review history with it, so it requires confirm: true. Ask the student in your own words first and only pass confirm once they have actually said yes.',
+    inputSchema: obj(
+      {
+        cardId: str('Card id.'),
+        confirm: { type: 'boolean', description: 'Must be true. Set it only after the student has agreed to the deletion.' },
+      },
+      ['cardId', 'confirm'],
+    ),
+    execute: ({ cardId, confirm }) => {
       const card = store.card(String(cardId))
       if (!card) return fail(`No card with id ${cardId}.`)
+      if (confirm !== true) {
+        return fail(
+          `Not deleted. "${card.front}" has ${card.history.length} recorded reviews that would be lost. Ask the student to confirm, then call again with confirm: true.`,
+        )
+      }
       store.deleteCard(card.id, AGENT, 'delete_card')
       return ok(`Deleted “${card.front}”.`)
     },
@@ -552,6 +564,26 @@ export const tools: ToolDescriptor[] = [
     },
   },
 ]
+
+const READ_ONLY = new Set([
+  'list_decks',
+  'get_deck',
+  'search_cards',
+  'get_study_state',
+  'get_weak_topics',
+  'get_note_impact',
+])
+const DESTRUCTIVE = new Set(['delete_card'])
+
+// Declared once over the finished list so a new tool cannot quietly ship
+// without a stance on whether it reads, writes or destroys.
+for (const tool of tools) {
+  tool.annotations = {
+    readOnlyHint: READ_ONLY.has(tool.name),
+    destructiveHint: DESTRUCTIVE.has(tool.name),
+    idempotentHint: READ_ONLY.has(tool.name) || tool.name === 'highlight' || tool.name === 'set_exam_date',
+  }
+}
 
 export const toolNames = tools.map((t) => t.name)
 

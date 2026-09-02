@@ -23,10 +23,23 @@ export type ToolResult = {
   structuredContent?: unknown
 }
 
+/**
+ * MCP-style behaviour hints. A browser or agent that understands them can decide
+ * what to call freely and what to confirm first; one that does not simply
+ * ignores them.
+ */
+export type ToolAnnotations = {
+  title?: string
+  readOnlyHint?: boolean
+  destructiveHint?: boolean
+  idempotentHint?: boolean
+}
+
 export type ToolDescriptor = {
   name: string
   description: string
   inputSchema: JSONSchema
+  annotations?: ToolAnnotations
   execute: (args: Record<string, unknown>) => Promise<ToolResult> | ToolResult
 }
 
