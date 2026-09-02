@@ -91,4 +91,10 @@ export type State = {
   activity: Activity[]
   focus: Focus
   requests: ApprovalRequest[]
+  /** Whether the last write to browser storage succeeded. Not persisted. */
+  storage: StorageStatus
+  /** Another tab has written a newer workspace. Not persisted. */
+  staleTab: boolean
 }
+
+export type StorageStatus = 'ok' | 'full' | 'unavailable'

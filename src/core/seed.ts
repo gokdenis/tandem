@@ -138,5 +138,7 @@ export function seed(): State {
     activity: [],
     focus: null,
     requests: [],
+    storage: 'ok',
+    staleTab: false,
   }
 }

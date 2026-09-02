@@ -79,16 +79,25 @@ function CardRow({ card }: { card: Card }) {
   )
 }
 
+const PAGE = 25
+
 export function CardManager({ deckId }: { deckId: string }) {
   const [mode, setMode] = useState<'none' | 'one' | 'bulk'>('none')
   const [front, setFront] = useState('')
   const [back, setBack] = useState('')
   const [topic, setTopic] = useState('')
   const [bulk, setBulk] = useState('')
-  const [expanded, setExpanded] = useState(false)
+  const [query, setQuery] = useState('')
+  const [shownCount, setShownCount] = useState(PAGE)
 
-  const cards = store.cardsOf(deckId)
-  const shown = expanded ? cards : cards.slice(0, 5)
+  const all = store.cardsOf(deckId)
+  const needle = query.trim().toLowerCase()
+  const cards = needle
+    ? all.filter((c) => [c.front, c.back, c.topic, c.note ?? ''].some((f) => f.toLowerCase().includes(needle)))
+    : all
+  // Rendering every row at once froze the page for a second and a half on a
+  // two thousand card deck, so the list grows a page at a time.
+  const shown = cards.slice(0, shownCount)
 
   const addOne = () => {
     if (!front.trim() || !back.trim()) return
@@ -113,8 +122,20 @@ export function CardManager({ deckId }: { deckId: string }) {
   return (
     <section className="panel">
       <div className="panel-head">
-        <h2>Cards ({cards.length})</h2>
+        <h2>Cards ({all.length})</h2>
         <div className="spacer" />
+        {all.length > PAGE ? (
+          <input
+            className="narrow"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setShownCount(PAGE)
+            }}
+            placeholder="Filter cards"
+            aria-label="Filter cards"
+          />
+        ) : null}
         <button className="btn sm" onClick={() => setMode(mode === 'one' ? 'none' : 'one')}>
           Add card
         </button>
@@ -159,15 +180,30 @@ export function CardManager({ deckId }: { deckId: string }) {
       ) : null}
 
       {cards.length === 0 ? (
-        <p className="hint">No cards yet. Add one above, or ask your agent to turn your notes into cards.</p>
+        <p className="hint">
+          {needle
+            ? `No cards match “${query}”.`
+            : 'No cards yet. Add one above, or ask your agent to turn your notes into cards.'}
+        </p>
       ) : (
         <div className="card-list">
           {shown.map((c) => (
             <CardRow key={c.id} card={c} />
           ))}
-          {cards.length > 5 ? (
-            <button className="btn sm quiet" onClick={() => setExpanded(!expanded)}>
-              {expanded ? 'Show fewer' : `Show all ${cards.length} cards`}
+          {cards.length > shown.length ? (
+            <div className="row" style={{ marginTop: 8 }}>
+              <button className="btn sm quiet" onClick={() => setShownCount(shownCount + PAGE * 4)}>
+                Show more
+              </button>
+              <span className="hint">
+                {shown.length} of {cards.length}
+                {needle ? ' matching' : ''}
+              </span>
+            </div>
+          ) : null}
+          {shownCount > PAGE ? (
+            <button className="btn sm quiet" onClick={() => setShownCount(PAGE)}>
+              Show fewer
             </button>
           ) : null}
         </div>

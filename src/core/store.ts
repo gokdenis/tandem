@@ -1,4 +1,4 @@
-import type { Activity, Actor, ApprovalRequest, Card, Deck, Focus, Grade, PlanBlock, Session, State } from './types'
+import type { Activity, Actor, ApprovalRequest, Card, Deck, Focus, Grade, PlanBlock, Session, State, StorageStatus } from './types'
 import { DAY, difficulty, isDue, noteImpact, schedule } from './srs'
 import { seed } from './seed'
 
@@ -7,6 +7,14 @@ import { seed } from './seed'
 const KEY = 'tandem.state.v2'
 
 export const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`
+
+/* Storage is a few megabytes shared with everything else on the origin, and a
+   tool call is an untrusted input, so text that goes into it is bounded. */
+export const MAX_TEXT = 2000
+export const MAX_TOPIC = 60
+export const MAX_CARDS_PER_CALL = 500
+
+const clamp = (value: string, max: number) => (value.length > max ? `${value.slice(0, max - 1)}…` : value)
 /**
  * The calendar day a timestamp falls on, in the student's own time zone.
  *
@@ -48,6 +56,8 @@ function load(): State {
         requests: Array.isArray(parsed.requests) ? parsed.requests : [],
         focus: parsed.focus ?? null,
         session: parsed.session ?? null,
+        storage: 'ok',
+        staleTab: false,
       }
       // A stored session pointing at a deck that is gone would wedge the UI.
       if (state.session && !state.decks.some((d) => d.id === state.session!.deckId)) state.session = null
@@ -90,6 +100,7 @@ type Listener = () => void
 class Store {
   private state: State = load()
   private listeners = new Set<Listener>()
+  private writeTimer: ReturnType<typeof setTimeout> | null = null
   /** While the scripted replay runs, every tool-driven change is logged as 'replay'. */
   private actorOverride: Actor | null = null
 
@@ -106,12 +117,54 @@ class Store {
 
   private set(next: State) {
     this.state = next
-    try {
-      localStorage.setItem(KEY, JSON.stringify(next))
-    } catch {
-      /* quota / private mode – the app still works, it just won't persist */
-    }
+    this.schedulePersist()
     this.listeners.forEach((l) => l())
+  }
+
+  /**
+   * Serialising the whole workspace on every keystroke cost 175ms per action
+   * once a deck grew past a couple of thousand cards. Writes are coalesced and
+   * flushed when the page is about to go away, so nothing is lost.
+   */
+  private schedulePersist() {
+    if (this.writeTimer !== null) return
+    this.writeTimer = setTimeout(() => {
+      this.writeTimer = null
+      this.persistNow()
+    }, 400)
+  }
+
+  /** Another tab wrote a newer workspace; adopt it on request rather than silently. */
+  markStale() {
+    if (this.state.staleTab) return
+    this.state = { ...this.state, staleTab: true }
+    this.listeners.forEach((l) => l())
+  }
+
+  adoptStoredWorkspace() {
+    this.state = load()
+    this.listeners.forEach((l) => l())
+  }
+
+  persistNow() {
+    if (this.writeTimer !== null) {
+      clearTimeout(this.writeTimer)
+      this.writeTimer = null
+    }
+    let status: StorageStatus = 'ok'
+    try {
+      localStorage.setItem(KEY, JSON.stringify(this.state))
+    } catch (err) {
+      const quota =
+        err instanceof DOMException &&
+        (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED')
+      status = quota ? 'full' : 'unavailable'
+    }
+    if (status !== this.state.storage) {
+      // A new object, so useSyncExternalStore actually re-renders.
+      this.state = { ...this.state, storage: status }
+      this.listeners.forEach((l) => l())
+    }
   }
 
   private log(actor: Actor, message: string, tool?: string) {
@@ -236,12 +289,12 @@ class Store {
     tool?: string,
   ): Card[] {
     const now = Date.now()
-    const made: Card[] = incoming.map((c) => ({
+    const made: Card[] = incoming.slice(0, MAX_CARDS_PER_CALL).map((c) => ({
       id: uid('card'),
       deckId,
-      front: c.front,
-      back: c.back,
-      topic: c.topic?.trim() || 'General',
+      front: clamp(c.front, MAX_TEXT),
+      back: clamp(c.back, MAX_TEXT),
+      topic: clamp(c.topic?.trim() || 'General', MAX_TOPIC),
       note: c.note,
       ease: 2.5,
       interval: 0,
@@ -263,7 +316,12 @@ class Store {
   updateCard(cardId: string, patch: Partial<Pick<Card, 'front' | 'back' | 'topic' | 'note'>>, actor: Actor, tool?: string) {
     // Stamping the note lets noteImpact() split this card's history into
     // "before the explanation" and "after it", which is the whole point.
-    const stamped = patch.note !== undefined ? { ...patch, noteAddedAt: Date.now() } : patch
+    const bounded = { ...patch }
+    if (bounded.front !== undefined) bounded.front = clamp(bounded.front, MAX_TEXT)
+    if (bounded.back !== undefined) bounded.back = clamp(bounded.back, MAX_TEXT)
+    if (bounded.topic !== undefined) bounded.topic = clamp(bounded.topic, MAX_TOPIC)
+    if (bounded.note !== undefined) bounded.note = clamp(bounded.note, MAX_TEXT)
+    const stamped = bounded.note !== undefined ? { ...bounded, noteAddedAt: Date.now() } : bounded
     this.commit(
       (s) => ({ ...s, cards: s.cards.map((c) => (c.id === cardId ? { ...c, ...stamped } : c)) }),
       actor,
@@ -439,5 +497,23 @@ class Store {
 }
 
 export const store = new Store()
+
+// A tab can be closed or backgrounded between the last change and the next
+// scheduled write, so flush on the events that mean "this page may not come
+// back". visibilitychange is the one mobile browsers actually fire.
+if (typeof document !== 'undefined') {
+  const flush = () => store.persistNow()
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush()
+  })
+  window.addEventListener('pagehide', flush)
+
+  // Two tabs on the same workspace used to overwrite each other without either
+  // one noticing. The storage event only fires in the tabs that did not write,
+  // which is exactly the set that needs telling.
+  window.addEventListener('storage', (event) => {
+    if (event.key === KEY && event.newValue) store.markStale()
+  })
+}
 export { DAY, difficulty, isDue, noteImpact }
 export type { Grade }
