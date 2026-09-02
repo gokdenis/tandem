@@ -10,18 +10,34 @@ Built for **The WebMCP Challenge** (OpenAI, September 2026).
 
 A chat assistant can already explain deadlock to you. What it cannot do is know that *you* have lapsed on the Coffman conditions five times, that the card is on your screen right now with the answer still hidden, and that the note it writes should live on that card forever.
 
-Tandem exposes 18 tools across four groups:
+Tandem exposes 19 tools across four groups:
 
 | Group | Tools |
 | --- | --- |
 | **Read the student's state** | `list_decks` · `get_deck` · `search_cards` · `get_study_state` · `get_weak_topics` |
 | **Change the material** | `create_deck` · `add_cards` · `update_card` · `annotate_card` · `delete_card` · `set_exam_date` |
 | **Drive the session** | `start_session` · `reveal_answer` · `grade_current_card` · `queue_cards` · `end_session` |
-| **Point and plan** | `highlight` · `plan_revision` |
+| **Point and plan** | `highlight` · `plan_revision` · `get_note_impact` |
 
 `get_study_state` is the one that makes the rest matter: it is how the agent sees your screen. Say *"I don't get this one"* with no other context and the agent knows which card, which topic, and whether you've already flipped it.
 
-Everything the agent does is also doable by hand, and both paths write through the same store, so the UI never falls out of sync, and the **live activity feed** shows who did what, tagged with the tool that did it.
+Everything the agent does is also doable by hand. You can create decks, write and edit cards, paste a block of notes and have it split into cards, set the exam date and grade yourself, all in the interface. Both paths write through the same store, so the UI never falls out of sync, and the **live activity feed** shows who did what, tagged with the tool that did it.
+
+## The tool surface is not fixed
+
+Most WebMCP pages register one list at startup and leave it there. Tandem registers the tools that make sense for what the app is currently doing.
+
+`grade_current_card` means nothing when no card is on screen, and `start_session` means nothing while a session is already running. So the study controls are registered when a session starts and withdrawn when it ends: **15 tools while you are on the dashboard, 18 while you are studying.** The header count is read back from `document.modelContext.getTools()`, not from our own array, so what you see is what the browser actually holds.
+
+The registry diffs the requested set against what is live and only touches the difference, so a stable tool is never re-registered and cannot end up duplicated on a browser that treats an aborted signal as a no-op.
+
+## Does the agent's help actually work?
+
+When an agent explains a card, `annotate_card` stamps the moment the note was attached. That timestamp splits the card's review history in two, so the same data that drives scheduling also answers a question no chat transcript can: **did that explanation change anything?**
+
+`get_note_impact` returns the verdict per card, comparing miss rate before the note against miss rate after it. An agent can find its own explanations that are not landing and rewrite them, instead of assuming an explanation stuck because it was well written. The card shows the same verdict to you while you study.
+
+This is the argument for writing into a user's durable state rather than into a conversation, made measurable.
 
 ## The loop it is built around
 
@@ -64,7 +80,8 @@ npm run simulate
 
 - looks for `document.modelContext` first (the spec's entry point), then `navigator.modelContext`
 - uses `registerTool()` per tool where available, falls back to a bulk `provideContext({ tools })`
-- registers behind an `AbortController` so unmounting cleanly withdraws the tools
+- keeps one `AbortController` per tool so individual tools can be withdrawn without disturbing the rest
+- re-syncs the surface whenever application state changes, and listens for the spec's `toolchange` event
 - polls briefly after first paint, because in-app browsers can install `modelContext` after the app boots
 - degrades to a no-op when WebMCP is absent, so the app is never broken by its own integration
 
@@ -73,6 +90,7 @@ Tool executors read live state at call time instead of closing over a snapshot, 
 ## Design notes worth knowing
 
 - **The scheduler is real.** `src/core/srs.ts` is a compact SM-2 variant. `ease` and `lapses` are what make `get_weak_topics` a measurement rather than a guess. An agent reasoning about "what am I bad at" needs a signal with history behind it.
+- **Nothing is agent-only.** Every tool has a hand-operated equivalent in the interface. The claim that you and your agent share one board is only true if you can reach all of it too.
 - **Tool descriptions are written for an agent, not for docs.** Each one says when to reach for it, e.g. `annotate_card`: *"explaining once in chat is forgotten, a note on the card is not."*
 - **Errors are recoverable.** A bad deck name returns the list of real deck names; a bad topic returns the deck's topics. The agent can fix itself in one turn.
 - **Deck arguments accept names, not just ids**, so the agent can pass through what the student actually said.
