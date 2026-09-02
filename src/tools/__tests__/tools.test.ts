@@ -122,3 +122,22 @@ describe('the study loop', () => {
     expect(text(report)).toContain('annotated card')
   })
 })
+
+describe('failure containment', () => {
+  it('turns an unexpected exception into a usable tool result', async () => {
+    const tool = tools.find((t) => t.name === 'get_weak_topics')!
+    const original = store.weakTopics
+    // Force the kind of failure no error path anticipates.
+    store.weakTopics = () => {
+      throw new Error('boom')
+    }
+    try {
+      const r = await tool.execute({ deck: 'Operating' })
+      expect(r.isError).toBe(true)
+      expect(r.content[0]?.text).toContain('failed unexpectedly')
+      expect(r.content[0]?.text).toContain('Nothing was changed')
+    } finally {
+      store.weakTopics = original
+    }
+  })
+})

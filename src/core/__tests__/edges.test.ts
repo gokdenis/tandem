@@ -76,3 +76,33 @@ describe('edges that used to break', () => {
     expect(store.getSnapshot().requests.filter((r) => r.status === 'pending')).toHaveLength(1)
   })
 })
+
+describe('bounds under load', () => {
+  it('tells the agent how many cards it did not add', async () => {
+    const r = await call('add_cards', {
+      deck: 'Operating',
+      cards: Array.from({ length: 700 }, (_, i) => ({ front: `q${i}`, back: `a${i}` })),
+    })
+    expect(text(r)).toContain('500')
+    expect(text(r)).toContain('another call')
+    expect((r.structuredContent as { overLimit: number }).overLimit).toBe(200)
+  })
+
+  it('trims text that would otherwise fill browser storage', async () => {
+    await call('add_cards', { deck: 'Operating', cards: [{ front: 'x'.repeat(50_000), back: 'y' }] })
+    const longest = Math.max(...store.getSnapshot().cards.map((c) => c.front.length))
+    expect(longest).toBeLessThanOrEqual(2000)
+  })
+
+  it('never hands an agent an unbounded deck dump', async () => {
+    await call('add_cards', {
+      deck: 'Operating',
+      cards: Array.from({ length: 400 }, (_, i) => ({ front: `question ${i}`, back: `answer ${i}` })),
+    })
+    const r = await call('get_deck', { deck: 'Operating' })
+    const payload = r.structuredContent as { total: number; returned: number; omitted: number }
+    expect(payload.returned).toBeLessThanOrEqual(60)
+    expect(payload.omitted).toBeGreaterThan(0)
+    expect(text(r)).toContain('not shown')
+  })
+})
