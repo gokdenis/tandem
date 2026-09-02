@@ -608,6 +608,23 @@ for (const tool of tools) {
 
 export const toolNames = tools.map((t) => t.name)
 
+/** How the surface is organised, for anyone reading it rather than calling it. */
+export const TOOL_GROUPS: Array<{ label: string; names: string[] }> = [
+  {
+    label: 'Read the student’s state',
+    names: ['list_decks', 'get_deck', 'search_cards', 'get_study_state', 'get_weak_topics', 'get_note_impact'],
+  },
+  {
+    label: 'Change the material',
+    names: ['create_deck', 'add_cards', 'update_card', 'annotate_card', 'delete_card', 'get_approval', 'set_exam_date'],
+  },
+  {
+    label: 'Drive the session',
+    names: ['start_session', 'reveal_answer', 'grade_current_card', 'queue_cards', 'end_session'],
+  },
+  { label: 'Point and plan', names: ['highlight', 'plan_revision'] },
+]
+
 /**
  * Tools that only mean anything while a card is on screen. Registering these
  * when no session is running would offer an agent controls it cannot use.

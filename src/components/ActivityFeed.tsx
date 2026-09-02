@@ -7,6 +7,8 @@ const ago = (t: number) => {
   return `${Math.round(s / 3600)}h ago`
 }
 
+const LABEL = { agent: 'AGENT', replay: 'REPLAY', human: 'YOU' } as const
+
 export function ActivityFeed() {
   const { activity } = useAppState()
 
@@ -20,12 +22,10 @@ export function ActivityFeed() {
       {activity.length === 0 ? (
         <p className="hint">Nothing yet. Study a card, or ask your agent to do something.</p>
       ) : (
-        <div className="feed">
-          {activity.slice(0, 22).map((a) => (
-            <div className="feed-item" key={a.id}>
-              <span className={`badge ${a.actor}`}>
-                {a.actor === 'agent' ? 'AGENT' : a.actor === 'replay' ? 'REPLAY' : 'YOU'}
-              </span>
+        <div className="feed" role="log" aria-live="polite">
+          {activity.slice(0, 30).map((a) => (
+            <div className={`feed-item ${a.actor}`} key={a.id}>
+              <span className={`badge ${a.actor}`}>{LABEL[a.actor]}</span>
               <div>
                 <div className="msg">{a.message}</div>
                 <div className="meta">

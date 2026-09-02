@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { tools, SESSION_ONLY, IDLE_ONLY } from '../tools'
+import { tools, SESSION_ONLY, IDLE_ONLY, TOOL_GROUPS } from '../tools'
 import { useAppState } from '../core/useStore'
 
 function Hints({ name }: { name: string }) {
@@ -46,21 +46,26 @@ export function ToolsPanel({ hasSession, connected }: { hasSession: boolean; con
         The surface is not fixed: session controls are registered only while a card is on screen and withdrawn when it is
         not. Select one to read exactly what an agent sees.
       </p>
-      <div className="tools">
-        {tools.map((t) => {
-          const active = isActive(t.name)
-          return (
-            <button
-              key={t.name}
-              className={`tool${recent.has(t.name) && active ? ' hot' : ''}${active ? '' : ' off'}${open === t.name ? ' open' : ''}`}
-              onClick={() => setOpen(open === t.name ? null : t.name)}
-              aria-expanded={open === t.name}
-            >
-              {t.name}
-            </button>
-          )
-        })}
-      </div>
+      {TOOL_GROUPS.map((group) => (
+        <div key={group.label} className="tool-group">
+          <p className="eyebrow">{group.label}</p>
+          <div className="tools">
+            {group.names.map((name) => {
+              const active = isActive(name)
+              return (
+                <button
+                  key={name}
+                  className={`tool${recent.has(name) && active ? ' hot' : ''}${active ? '' : ' off'}${open === name ? ' open' : ''}`}
+                  onClick={() => setOpen(open === name ? null : name)}
+                  aria-expanded={open === name}
+                >
+                  {name}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
 
       {selected ? (
         <div className="tool-detail">
