@@ -10,6 +10,8 @@ Built for **The WebMCP Challenge** (OpenAI, September 2026).
 
 **[Open the live app](https://tandem-tau-nine.vercel.app/)**
 
+On a first visit, a three-step tour introduces the study board, the shared agent surface and the human approval boundary. Completing or skipping it does not touch the workspace, and **How it works** in the header opens it again at any time.
+
 ## Why this is a WebMCP app and not a chatbot with a database
 
 A chat assistant can already explain deadlock to you. What it cannot do is know that *you* have lapsed on the Coffman conditions five times, that the card is on your screen right now with the answer still hidden, and that the note it writes should live on that card forever.
@@ -102,7 +104,7 @@ Click **Watch a replay** on the dashboard. It runs a scripted walkthrough throug
 ```bash
 npm test      # 52 tests: scheduler, note impact, tool surface, dates, edges, invariants, evals
 npm run check # lint, typecheck, tests and a production build
-npm run a11y  # axe-core over both themes, on three application states
+npm run a11y  # axe-core over both themes, on four application states
 ```
 
 The browser harnesses need Chromium once per machine: `npx playwright install chromium`. Both `npm run simulate` and `npm run a11y` start and stop their own local Vite server unless `URL` points at a deployment.
@@ -154,7 +156,7 @@ The final release pass closed the cross-feature cases as well:
 
 ## Testing without an agent
 
-`harness/simulate.mjs` installs a fake WebMCP host with Playwright, then drives the app **through the tools only**, including the failure paths. It also validates every registered schema (snake_case names, non-trivial descriptions, valid `required` keys and both current safety annotations).
+`harness/simulate.mjs` installs a fake WebMCP host with Playwright, verifies the first-run tour and then drives the app **through the tools only**, including the failure paths. It validates tour navigation, persistence, reopening and keyboard dismissal alongside every registered schema (snake_case names, non-trivial descriptions, valid `required` keys and both current safety annotations).
 
 ```bash
 npm install
