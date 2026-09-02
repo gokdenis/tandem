@@ -98,12 +98,25 @@ Click **Watch a replay** on the dashboard. It runs a scripted walkthrough throug
 ## Tests
 
 ```bash
-npm test      # unit tests for the scheduler, note impact and the tool surface
-npm run check # typecheck, tests and a production build
+npm test      # 32 tests: scheduler, note impact, tool surface, dates, edges, invariants
+npm run check # lint, typecheck, tests and a production build
 npm run a11y  # axe-core over the dashboard, a session and a permission request
 ```
 
 The tool-layer tests assert the things a description can only promise: that failures come back with the real deck and topic names, that session controls are withdrawn when no card is on screen, that every tool declares behaviour hints, and that a delete request leaves the card in place until a human answers it.
+
+`invariants.test.ts` runs thirty seeded random sequences of eighteen different operations and checks after every one of them that the workspace still holds together: no duplicate or orphaned cards, ease inside its bounds, a session index that cannot pass the end of its queue, at most one pending permission request, and state that survives a round trip through storage unchanged. `edges.test.ts` is one regression test per defect this found.
+
+### What that turned up
+
+TypeScript was not running in strict mode, which is how most of these survived. Turning it on, with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`, produced 66 errors and these four real defects:
+
+- **Dates were computed in UTC.** An exam set for the 14th displayed as the 13th in Auckland, and after seven in the evening in Chicago the plan called tomorrow "today". `dateKey` now reads local calendar components.
+- **Deleting a deck left ghosts in a running session.** `queue_cards` can pull cards from any deck, so a queue could outlive the deck it borrowed from: the session stayed open, the counter still read six cards, and the screen showed none. Every path that removes cards now goes through one pruning step.
+- **A past exam date was accepted.** `set_exam_date` reported "-2436 days away" and `plan_revision` built a plan around it. Both now refuse and say what today is, so the agent can correct the year.
+- **Stored state was trusted.** Anything that parsed as JSON was loaded, so a truncated or hand edited entry could take the app down. It is now shape checked and discarded if it does not match.
+
+Time was also being read during render, which froze every relative timestamp until an unrelated change and left a tab open past midnight still calling yesterday today.
 
 ## Testing without an agent
 

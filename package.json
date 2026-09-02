@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "simulate": "node harness/simulate.mjs",
     "test": "vitest run",
-    "check": "tsc -b && vitest run && vite build",
+    "check": "oxlint && tsc -b && vitest run && vite build",
     "a11y": "node harness/a11y.mjs"
   },
   "dependencies": {

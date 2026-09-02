@@ -18,6 +18,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Lint
+        run: npx oxlint
+
       - name: Typecheck
         run: npx tsc -b
 
@@ -34,3 +37,4 @@ jobs:
           npx vite preview --port 4173 &
           npx wait-on http://localhost:4173 || sleep 5
           URL=http://localhost:4173/ node harness/simulate.mjs
+          URL=http://localhost:4173/ node harness/a11y.mjs
