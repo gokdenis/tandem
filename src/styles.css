@@ -56,6 +56,7 @@
   --warn-edge: rgba(251, 191, 36, 0.4);
 
   --bad: #f87171;
+  --bad-ink: #2a0c0c;
   --bad-text: #f2a3a3;
   --bad-wash: rgba(248, 113, 113, 0.08);
   --bad-edge: rgba(248, 113, 113, 0.45);
@@ -111,6 +112,155 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Inter, Roboto, sans-serif;
 }
+
+
+/* ============================================================================
+   Light theme
+
+   The same semantics, measured the same way: green is the student, violet is
+   the agent, amber is a request waiting on a person, red is destructive. Every
+   text and surface pair below clears WCAG AA, which is why the accents are
+   darker here than their dark theme counterparts: #34d399 on white is 1.7:1.
+
+   :root carries the dark values, so a light palette is applied either because
+   the system asks for one and the student has not overridden it, or because
+   they picked light explicitly.
+   ========================================================================== */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --panel-2: #f2f4f7;
+    --panel-3: #e9edf2;
+    --hover: #eef1f5;
+    --track: #e4e8ee;
+    --field: #ffffff;
+    --code-bg: #f2f4f7;
+    --card-top: #ffffff;
+    --scroll: #c8cfd9;
+    --sheen: rgba(0, 0, 0, 0.02);
+    --ink-wash: rgba(0, 0, 0, 0.05);
+
+    --line-soft: #e6eaf0;
+    --line: #d5dbe4;
+    --line-strong: #b6bfcc;
+
+    --text: #171a1f;
+    --text-1: #2b313a;
+    --text-2: #3d4552;
+    --muted: #4d5666;
+    --dim: #5f6875;
+    --code-text: #41495a;
+    --placeholder: #6b7482;
+
+    --human: #047857;
+    --human-ink: #ffffff;
+    --human-bright: #036a4e;
+    --human-text: #04785b;
+    --human-wash: rgba(4, 120, 87, 0.07);
+    --human-tint: rgba(4, 120, 87, 0.14);
+    --human-edge: rgba(4, 120, 87, 0.42);
+
+    --agent: #5b30c9;
+    --agent-text: #5b30c9;
+    --agent-wash: rgba(91, 48, 201, 0.06);
+    --agent-tint: rgba(91, 48, 201, 0.12);
+    --agent-edge: rgba(91, 48, 201, 0.35);
+
+    --warn: #8a5a06;
+    --warn-text: #8a5a06;
+    --warn-wash: rgba(138, 90, 6, 0.06);
+    --warn-tint: rgba(138, 90, 6, 0.14);
+    --warn-edge: rgba(138, 90, 6, 0.38);
+
+    --bad: #b3261e;
+    --bad-ink: #ffffff;
+    --bad-text: #b3261e;
+    --bad-wash: rgba(179, 38, 30, 0.06);
+    --bad-edge: rgba(179, 38, 30, 0.4);
+
+    --e-inset: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    --e-raised: 0 12px 32px rgba(23, 26, 31, 0.10), 0 1px 2px rgba(23, 26, 31, 0.06);
+  }
+}
+
+/* An explicit choice wins over the system in both directions. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --panel-2: #f2f4f7;
+  --panel-3: #e9edf2;
+  --hover: #eef1f5;
+  --track: #e4e8ee;
+  --field: #ffffff;
+  --code-bg: #f2f4f7;
+  --card-top: #ffffff;
+  --scroll: #c8cfd9;
+  --sheen: rgba(0, 0, 0, 0.02);
+  --ink-wash: rgba(0, 0, 0, 0.05);
+
+  --line-soft: #e6eaf0;
+  --line: #d5dbe4;
+  --line-strong: #b6bfcc;
+
+  --text: #171a1f;
+  --text-1: #2b313a;
+  --text-2: #3d4552;
+  --muted: #4d5666;
+  --dim: #5f6875;
+  --code-text: #41495a;
+  --placeholder: #6b7482;
+
+  --human: #047857;
+  --human-ink: #ffffff;
+  --human-bright: #036a4e;
+  --human-text: #04785b;
+  --human-wash: rgba(4, 120, 87, 0.07);
+  --human-tint: rgba(4, 120, 87, 0.14);
+  --human-edge: rgba(4, 120, 87, 0.42);
+
+  --agent: #5b30c9;
+  --agent-text: #5b30c9;
+  --agent-wash: rgba(91, 48, 201, 0.06);
+  --agent-tint: rgba(91, 48, 201, 0.12);
+  --agent-edge: rgba(91, 48, 201, 0.35);
+
+  --warn: #8a5a06;
+  --warn-text: #8a5a06;
+  --warn-wash: rgba(138, 90, 6, 0.06);
+  --warn-tint: rgba(138, 90, 6, 0.14);
+  --warn-edge: rgba(138, 90, 6, 0.38);
+
+  --bad: #b3261e;
+    --bad-ink: #ffffff;
+  --bad-text: #b3261e;
+  --bad-wash: rgba(179, 38, 30, 0.06);
+  --bad-edge: rgba(179, 38, 30, 0.4);
+
+  --e-inset: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --e-raised: 0 12px 32px rgba(23, 26, 31, 0.10), 0 1px 2px rgba(23, 26, 31, 0.06);
+}
+
+:root[data-theme='dark'] { color-scheme: dark; }
+
+/* The theme picker itself */
+.theme-picker {
+  display: inline-flex; align-items: center; gap: 2px;
+  border: 1px solid var(--line); background: var(--panel);
+  border-radius: var(--r-pill); padding: 2px;
+}
+.theme-picker button {
+  border: none; background: transparent; color: var(--dim);
+  border-radius: var(--r-pill); padding: var(--s-1) var(--s-4);
+  font-size: var(--t-2xs); min-height: 26px;
+  transition: background var(--dur), color var(--dur);
+}
+.theme-picker button:hover { color: var(--text); }
+.theme-picker button[aria-pressed='true'] { background: var(--panel-3); color: var(--text); }
 
 /* ============================================================================
    Reset
@@ -649,5 +799,5 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
 }
 
 /* A destructive confirmation should read as destructive, not as a happy path. */
-.btn.danger-solid { background: var(--bad); color: #2a0c0c; border-color: transparent; font-weight: 620; }
-.btn.danger-solid:hover { background: #fa8b8b; }
+.btn.danger-solid { background: var(--bad); color: var(--bad-ink); border-color: transparent; font-weight: 620; }
+.btn.danger-solid:hover { filter: brightness(1.08); }

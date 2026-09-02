@@ -1,13 +1,19 @@
 import type { WebMCPStatus } from '../webmcp/adapter'
+import { ThemePicker } from './ThemePicker'
+import type { ThemeChoice } from '../core/theme'
 
 export function Header({
   status,
   exposed,
   registered,
+  theme,
+  onTheme,
 }: {
   status: WebMCPStatus
   exposed: number
   registered: number | null
+  theme: ThemeChoice
+  onTheme: (next: ThemeChoice) => void
 }) {
   return (
     <header className="header">
@@ -16,6 +22,7 @@ export function Header({
         <span>a study board you and your agent share</span>
       </div>
       <div className="spacer" />
+      <ThemePicker value={theme} onChange={onTheme} />
       <span className="pill" title="The tool surface changes with what the app is doing.">
         <b style={{ color: 'var(--text)', fontVariantNumeric: 'tabular-nums' }}>{exposed}</b>
         &nbsp;tools exposed

@@ -8,6 +8,7 @@ import {
 } from './webmcp/adapter'
 import { activeTools } from './tools'
 import { useAppState } from './core/useStore'
+import { useTheme } from './core/theme'
 import { Header } from './components/Header'
 import { SetupBanner } from './components/SetupBanner'
 import { Dashboard } from './components/Dashboard'
@@ -22,6 +23,7 @@ import { REPLAY_STEPS, runReplay } from './replay/script'
 
 export default function App() {
   const state = useAppState()
+  const [theme, setTheme] = useTheme()
   const [status, setStatus] = useState<WebMCPStatus>({ supported: false, reason: 'checking…' })
   /** What the browser itself reports through getTools(), not our own count. */
   const [registered, setRegistered] = useState<number | null>(null)
@@ -107,7 +109,13 @@ export default function App() {
       <a className="skip-link" href="#workspace">
         Skip to the study board
       </a>
-      <Header status={status} exposed={activeTools(hasSession).length} registered={registered} />
+      <Header
+        status={status}
+        exposed={activeTools(hasSession).length}
+        registered={registered}
+        theme={theme}
+        onTheme={setTheme}
+      />
       <div className="body">
         <main className="main" id="workspace" aria-label="Study board">
           {state.staleTab ? (
