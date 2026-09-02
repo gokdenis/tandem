@@ -48,12 +48,34 @@ export function detectWebMCP(): WebMCPStatus {
  */
 export class ToolRegistry {
   private live = new Map<string, AbortController>()
+  /** Serialises syncs so two overlapping calls cannot register the same tool twice. */
+  private queue: Promise<void> = Promise.resolve()
+  private wanted: ToolDescriptor[] | null = null
 
   get names(): string[] {
     return [...this.live.keys()]
   }
 
-  async sync(tools: ToolDescriptor[]): Promise<void> {
+  /**
+   * Bring the browser's tool surface in line with the requested set.
+   *
+   * Registration is asynchronous, so two syncs started close together used to
+   * both look at an empty registry and both register: an agent saw every tool
+   * twice. Calls are now serialised, and a sync that arrives while another is
+   * running replaces the pending target rather than queueing behind it, since
+   * only the latest state is worth reaching.
+   */
+  sync(tools: ToolDescriptor[]): Promise<void> {
+    this.wanted = tools
+    this.queue = this.queue.then(() => this.run())
+    return this.queue
+  }
+
+  private async run(): Promise<void> {
+    const tools = this.wanted
+    if (!tools) return
+    this.wanted = null
+
     const found = findModelContext()
     if (!found) return
     const { ctx } = found
@@ -81,16 +103,20 @@ export class ToolRegistry {
       }
     }
 
-    for (const tool of tools) {
-      if (this.live.has(tool.name)) continue
-      const controller = new AbortController()
-      try {
-        await ctx.registerTool(tool, { signal: controller.signal })
+    // Claim each name before awaiting, so nothing can slip in behind the await,
+    // and register in one round rather than twenty sequential ones.
+    const pending = tools
+      .filter((tool) => !this.live.has(tool.name))
+      .map((tool) => {
+        const controller = new AbortController()
         this.live.set(tool.name, controller)
-      } catch (err) {
-        console.error(`[webmcp] failed to register tool "${tool.name}"`, err)
-      }
-    }
+        return Promise.resolve(ctx.registerTool!(tool, { signal: controller.signal })).catch((err) => {
+          console.error(`[webmcp] failed to register tool "${tool.name}"`, err)
+          this.live.delete(tool.name)
+        })
+      })
+
+    await Promise.all(pending)
   }
 
   dispose() {
