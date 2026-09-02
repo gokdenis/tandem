@@ -64,10 +64,10 @@ function CardRow({ card }: { card: Card }) {
         ) : null}
       </div>
       <div className="row">
-        <button className="btn sm ghost" onClick={() => setEditing(true)}>
+        <button className="btn sm quiet" onClick={() => setEditing(true)}>
           Edit
         </button>
-        <button className="btn sm ghost danger" onClick={() => store.deleteCard(card.id, 'human')}>
+        <button className="btn sm quiet danger" onClick={() => store.deleteCard(card.id, 'human')}>
           Delete
         </button>
       </div>
@@ -160,7 +160,7 @@ export function CardManager({ deckId }: { deckId: string }) {
             <CardRow key={c.id} card={c} />
           ))}
           {cards.length > 5 ? (
-            <button className="btn sm ghost" onClick={() => setExpanded(!expanded)}>
+            <button className="btn sm quiet" onClick={() => setExpanded(!expanded)}>
               {expanded ? 'Show fewer' : `Show all ${cards.length} cards`}
             </button>
           ) : null}

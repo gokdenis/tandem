@@ -143,8 +143,9 @@ export function StudyView() {
               </p>
               <div className="tools">
                 {upNext.map((c) => (
-                  <span key={c!.id} className="tool" title={c!.front}>
-                    {c!.topic} · {c!.front.length > 34 ? `${c!.front.slice(0, 34)}…` : c!.front}
+                  <span key={c!.id} className="queue-chip" title={c!.front}>
+                    <b>{c!.topic}</b>
+                    {c!.front.length > 38 ? `${c!.front.slice(0, 38)}…` : c!.front}
                   </span>
                 ))}
               </div>
