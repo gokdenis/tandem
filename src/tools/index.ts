@@ -1,6 +1,6 @@
 import { fail, ok } from '../webmcp/adapter'
 import type { ToolDescriptor } from '../webmcp/types'
-import { dateKey, store, uid } from '../core/store'
+import { dateKey, MAX_CARDS_PER_CALL, MAX_TEXT, store, uid } from '../core/store'
 import { difficulty, isDue, noteImpact, DAY } from '../core/srs'
 import type { Card, Deck, Grade, PlanBlock } from '../core/types'
 
@@ -85,21 +85,41 @@ export const tools: ToolDescriptor[] = [
   {
     name: 'get_deck',
     description:
-      'Get the full contents of one deck: every card with its front, back, topic, difficulty and next due date. Use this before rewriting cards or building a plan so you are working from what actually exists.',
-    inputSchema: obj({ deck: str('Deck name or id.'), topic: str('Optional: only return cards in this topic.') }, ['deck']),
-    execute: ({ deck, topic }) => {
+      'Get the contents of one deck: cards with their front, back, topic, difficulty and next due date. Use this before rewriting cards or building a plan so you are working from what actually exists. Large decks are truncated, so narrow with topic or reach for search_cards when you are looking for something specific rather than reading everything.',
+    inputSchema: obj(
+      {
+        deck: str('Deck name or id.'),
+        topic: str('Optional: only return cards in this topic.'),
+        limit: int('Max cards to return. Default 60, hard cap 200.'),
+      },
+      ['deck'],
+    ),
+    execute: ({ deck, topic, limit }) => {
       const r = needDeck(deck)
       if (!r.found) return fail(r.error)
       let cards = store.cardsOf(r.deck.id)
       if (topic) cards = cards.filter((c) => c.topic.toLowerCase() === String(topic).toLowerCase())
+
+      const total = cards.length
+      const max = Math.max(1, Math.min(200, Number(limit) || 60))
+      const shown = cards.slice(0, max)
+      const omitted = total - shown.length
+
       const payload = {
         deck: { id: r.deck.id, name: r.deck.name, examDate: r.deck.examAt ? dateKey(r.deck.examAt) : null },
-        cards: cards.map(brief),
+        total,
+        returned: shown.length,
+        omitted,
+        topics: [...store.topicsOf(r.deck.id).keys()],
+        cards: shown.map(brief),
       }
-      const text =
-        `${r.deck.name} (${cards.length} cards${topic ? ` in topic “${topic}”` : ''}):\n` +
-        cards.map((c) => `[${c.topic}] ${c.front} → ${c.back}${c.note ? ` (note: ${c.note})` : ''}`).join('\n')
-      return ok(text, payload)
+      const header = `${r.deck.name} (${total} cards${topic ? ` in topic “${topic}”` : ''}${omitted > 0 ? `, showing the first ${shown.length}` : ''}):`
+      const body = shown.map((c) => `[${c.topic}] ${c.front} → ${c.back}${c.note ? ` (note: ${c.note})` : ''}`).join('\n')
+      const footer =
+        omitted > 0
+          ? `\n\n${omitted} more not shown. Narrow with topic (${[...store.topicsOf(r.deck.id).keys()].slice(0, 6).join(', ')}) or use search_cards.`
+          : ''
+      return ok(`${header}\n${body}${footer}`, payload)
     },
   },
 
@@ -229,10 +249,28 @@ export const tools: ToolDescriptor[] = [
           ...(c.note === undefined ? {} : { note: String(c.note) }),
         }))
       if (clean.length === 0) return fail('No usable cards. Each card needs a non-empty front and back.')
+
+      const dropped = list.length - clean.length
+      const overflow = Math.max(0, clean.length - MAX_CARDS_PER_CALL)
       const made = store.addCards(r.deck.id, clean, AGENT, 'add_cards')
-      return ok(`Added ${made.length} card${made.length === 1 ? '' : 's'} to “${r.deck.name}”. They are due immediately.`, {
-        added: made.map((c) => ({ id: c.id, topic: c.topic, front: c.front })),
-      })
+      const notes = [
+        dropped > 0 ? `${dropped} had an empty front or back and were skipped` : '',
+        overflow > 0 ? `${overflow} were beyond the ${MAX_CARDS_PER_CALL} card limit for one call and were not added, so send them in another call` : '',
+        clean.slice(0, made.length).some((c) => c.front.length > MAX_TEXT || c.back.length > MAX_TEXT)
+          ? `some text was longer than ${MAX_TEXT} characters and was trimmed`
+          : '',
+      ].filter(Boolean)
+
+      return ok(
+        `Added ${made.length} card${made.length === 1 ? '' : 's'} to “${r.deck.name}”. They are due immediately.` +
+          (notes.length ? ` Note: ${notes.join('; ')}.` : ''),
+        {
+          added: made.map((c) => ({ id: c.id, topic: c.topic, front: c.front })),
+          requested: list.length,
+          skippedEmpty: dropped,
+          overLimit: overflow,
+        },
+      )
     },
   },
 
@@ -610,6 +648,26 @@ export const tools: ToolDescriptor[] = [
     },
   },
 ]
+
+/**
+ * A tool that throws hands the browser an exception instead of an answer, and
+ * the agent is left with nothing it can act on. Every executor is wrapped so an
+ * unexpected failure comes back in the same shape as an expected one.
+ */
+for (const tool of tools) {
+  const inner = tool.execute
+  tool.execute = async (args) => {
+    try {
+      return await inner(args)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`[tools] ${tool.name} threw`, err)
+      return fail(
+        `${tool.name} failed unexpectedly: ${message}. Nothing was changed by this call. Try a different approach, or tell the student what you were attempting.`,
+      )
+    }
+  }
+}
 
 const READ_ONLY = new Set([
   'list_decks',
