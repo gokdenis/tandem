@@ -1,6 +1,12 @@
-import { useEffect, useState } from 'react'
-import { detectWebMCP, registerTools, type WebMCPStatus } from './webmcp/adapter'
-import { tools } from './tools'
+import { useEffect, useRef, useState } from 'react'
+import {
+  browserToolCount,
+  detectWebMCP,
+  onToolChange,
+  ToolRegistry,
+  type WebMCPStatus,
+} from './webmcp/adapter'
+import { activeTools } from './tools'
 import { useAppState } from './core/useStore'
 import { Header } from './components/Header'
 import { SetupBanner } from './components/SetupBanner'
@@ -9,59 +15,83 @@ import { StudyView } from './components/StudyView'
 import { ActivityFeed } from './components/ActivityFeed'
 import { ToolsPanel } from './components/ToolsPanel'
 
-// React 18/19 StrictMode mounts effects twice in development; registering the
-// same tool set twice would show duplicates to the agent.
-let registered = false
-
 export default function App() {
   const state = useAppState()
   const [status, setStatus] = useState<WebMCPStatus>({ supported: false, reason: 'checking…' })
+  /** What the browser itself reports through getTools(), not our own count. */
+  const [registered, setRegistered] = useState<number | null>(null)
+  const registry = useRef<ToolRegistry | null>(null)
+
+  const hasSession = state.session !== null
 
   useEffect(() => {
     let cancelled = false
-    let unregister: (() => void) | undefined
-
-    // The in-app browser can install modelContext slightly after first paint,
-    // so poll briefly rather than deciding on the very first tick.
     let tries = 0
+
+    // An in-app browser can install modelContext slightly after first paint,
+    // so poll briefly instead of deciding on the very first tick.
     const attach = async () => {
       const detected = detectWebMCP()
       if (!detected.supported && tries < 12) {
         tries += 1
-        setTimeout(attach, 250)
         setStatus(detected)
+        setTimeout(attach, 250)
         return
       }
       if (cancelled) return
       setStatus(detected)
-      if (detected.supported && !registered) {
-        registered = true
-        unregister = await registerTools(tools)
+      if (detected.supported && !registry.current) {
+        registry.current = new ToolRegistry()
+        await registry.current.sync(activeTools(hasSession))
+        setRegistered(await browserToolCount())
       }
     }
     void attach()
 
+    const off = onToolChange(async () => {
+      if (!cancelled) setRegistered(await browserToolCount())
+    })
+
     return () => {
       cancelled = true
-      if (unregister) {
-        unregister()
-        registered = false
-      }
+      off()
+      registry.current?.dispose()
+      registry.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // The tool surface follows application state: session controls appear when a
+  // card is on screen and withdraw when it is not.
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      if (!registry.current) return
+      await registry.current.sync(activeTools(hasSession))
+      if (!cancelled) setRegistered(await browserToolCount())
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [hasSession, status.supported])
 
   return (
     <div className="app">
-      <Header status={status} />
+      <Header status={status} exposed={activeTools(hasSession).length} registered={registered} />
       <div className="body">
         <main className="main">
-          {!status.supported ? <SetupBanner /> : null}
-          {!status.supported ? <div style={{ height: 16 }} /> : null}
+          {!status.supported ? (
+            <>
+              <SetupBanner />
+              <div style={{ height: 16 }} />
+            </>
+          ) : null}
           {state.session ? <StudyView /> : <Dashboard />}
         </main>
         <aside className="rail">
           <ActivityFeed />
-          <ToolsPanel />
+          <ToolsPanel hasSession={hasSession} />
         </aside>
       </div>
     </div>

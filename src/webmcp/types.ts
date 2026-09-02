@@ -37,6 +37,7 @@ export interface ModelContext {
   provideContext?: (context: { tools: ToolDescriptor[] }) => Promise<unknown> | unknown
   getTools?: () => Promise<unknown[]>
   addEventListener?: (type: string, listener: () => void) => void
+  removeEventListener?: (type: string, listener: () => void) => void
 }
 
 declare global {
