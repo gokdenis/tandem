@@ -43,6 +43,16 @@ One screen carries one primary action. The dashboard has `Study N due cards`;
 everything else there is secondary or quiet. The study view has the card
 itself, which is why it is the only element with `--e-raised`.
 
+## Surfaces are flat
+
+Every surface is a single colour. The page background used to carry two radial
+gradients, and because a background is painted on the body box rather than over
+the whole scroll height, they repeated partway down a long page and left a
+visible seam in both themes. The hero panel and the study card carried the same
+kind of decoration on elements that grow with their content, so they went too.
+The only gradient left is the hatch that marks a withdrawn tool, where the
+repeat is the point.
+
 ## Themes
 
 `:root` carries the dark values. A light palette is applied when the system asks

@@ -270,10 +270,10 @@ html, body, #root { height: 100%; }
 
 body {
   margin: 0;
-  background:
-    radial-gradient(1100px 620px at 78% -12%, var(--agent-wash), transparent 60%),
-    radial-gradient(900px 520px at 4% 108%, var(--human-wash), transparent 62%),
-    var(--bg);
+  /* Flat. Two radial gradients used to live here, and because a background is
+     painted on the body box rather than the whole scroll height, they repeated
+     partway down a long page and left a visible seam in both themes. */
+  background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
   font-size: var(--t-base);
@@ -439,7 +439,7 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
    Dashboard
    ========================================================================== */
 .panel.hero {
-  background: radial-gradient(700px 220px at 88% -30%, var(--human-wash), transparent 70%), var(--panel);
+  background: var(--panel);
   border-color: var(--line);
 }
 .hero-top { display: flex; align-items: flex-start; gap: var(--s-7); flex-wrap: wrap; }
@@ -456,8 +456,11 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
 .stat-value {
   font-size: var(--t-2xl); font-weight: 600; letter-spacing: -0.03em; line-height: 1.05;
   font-variant-numeric: tabular-nums; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  overflow-wrap: anywhere;
 }
+/* A topic name is a word, not a measurement: it gets a size that fits the
+   column instead of being cut off with an ellipsis. */
+.stat-value.word { font-size: var(--t-lg); line-height: 1.2; letter-spacing: -0.015em; }
 .stat-label { font-size: var(--t-xs); color: var(--dim); margin-top: var(--s-2); }
 
 .cta { display: flex; gap: var(--s-4); flex-wrap: wrap; }
@@ -542,9 +545,7 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
 .card {
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
-  background:
-    radial-gradient(560px 200px at 50% -20%, var(--sheen), transparent 70%),
-    linear-gradient(180deg, var(--card-top), var(--panel));
+  background: var(--card-top);
   padding: var(--s-11) var(--s-10);
   min-height: 300px;
   display: flex; flex-direction: column; gap: var(--s-9);
@@ -666,7 +667,7 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
    ========================================================================== */
 .replay-bar {
   border: 1px solid var(--agent-edge);
-  background: linear-gradient(180deg, var(--agent-tint), var(--agent-wash));
+  background: var(--agent-tint);
   border-radius: var(--r-lg);
   padding: var(--s-6) var(--s-7) var(--s-5);
 }
@@ -690,14 +691,18 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
 
 .approval {
   border: 1px solid var(--warn-edge);
-  background: linear-gradient(180deg, var(--warn-tint), var(--warn-wash));
+  /* The wash, not the tint: flattening this to the stronger tone dropped the
+     hint text inside it below the contrast floor. */
+  background: var(--warn-wash);
   border-radius: var(--r-lg);
   padding: var(--s-7) var(--s-7);
 }
 .approval-head { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
 .approval-tag {
   font-size: var(--t-3xs); font-weight: 700; letter-spacing: 0.06em;
-  background: var(--warn-tint); color: var(--warn-text);
+  /* The wash, not the tint: flattening this to the stronger tone dropped the
+     hint text inside it below the contrast floor. */
+  background: var(--warn-wash); color: var(--warn-text);
   padding: 3px var(--s-3); border-radius: var(--r-xs);
 }
 .approval-summary { font-size: var(--t-md); margin: var(--s-5) 0 var(--s-1); color: var(--text); }
