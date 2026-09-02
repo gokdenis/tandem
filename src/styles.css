@@ -409,9 +409,13 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
 .card .front {
   font-size: var(--t-display); line-height: var(--lh-tight);
   letter-spacing: -0.022em; margin: 0; font-weight: 550; max-width: 24em;
+  /* An unbroken string, a URL or a long formula must wrap rather than
+     stretch the card past the edge of the screen. */
+  overflow-wrap: anywhere;
 }
 .card .back {
   font-size: var(--t-md); color: var(--text-1); margin: 0; line-height: var(--lh); max-width: 46em;
+  overflow-wrap: anywhere;
   padding-top: var(--s-8); border-top: 1px dashed var(--line);
   animation: rise .28s var(--ease);
 }
@@ -436,6 +440,7 @@ textarea { width: 100%; resize: vertical; font-family: var(--sans); line-height:
 .grade.easy:hover { border-color: var(--human-edge); }
 
 .queue-chip {
+  max-width: 100%; overflow-wrap: anywhere;
   font-family: var(--sans); font-size: var(--t-xs); color: var(--muted);
   border: 1px solid var(--line-soft); border-radius: var(--r-pill); padding: var(--s-2) var(--s-5);
   background: var(--panel-2);
