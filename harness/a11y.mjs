@@ -35,7 +35,9 @@ await page.goto(URL, { waitUntil: 'networkidle' })
 await page.waitForTimeout(600)
 
 const states = [
-  ['dashboard', async () => {}],
+  ['dashboard', async () => {
+    await page.evaluate(() => window.__mcp.call('end_session'))
+  }],
   ['study session', async () => {
     await page.evaluate(() => window.__mcp.call('start_session', { deck: 'Operating Systems', mode: 'weak', limit: 5 }))
     await page.evaluate(() => window.__mcp.call('reveal_answer'))
@@ -47,21 +49,26 @@ const states = [
   }],
 ]
 
+const themes = process.env.THEME ? [process.env.THEME] : ['dark', 'light']
 let total = 0
-for (const [name, setup] of states) {
-  await setup()
-  await page.waitForTimeout(400)
-  await page.addScriptTag({ content: axe })
-  const results = await page.evaluate(async () =>
-    // eslint-disable-next-line no-undef
-    await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } }),
-  )
-  const violations = results.violations
-  total += violations.length
-  console.log(`\n${name}: ${violations.length} violation${violations.length === 1 ? '' : 's'}`)
-  for (const v of violations) {
-    console.log(`  [${v.impact}] ${v.id}: ${v.help}`)
-    for (const node of v.nodes.slice(0, 3)) console.log(`      ${node.target.join(' ')}`)
+for (const theme of themes) {
+  await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme)
+  await page.waitForTimeout(200)
+  for (const [name, setup] of states) {
+    await setup()
+    await page.waitForTimeout(400)
+    await page.addScriptTag({ content: axe })
+    const results = await page.evaluate(async () =>
+      // eslint-disable-next-line no-undef
+      await window.axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] } }),
+    )
+    const violations = results.violations
+    total += violations.length
+    console.log(`  ${theme} / ${name}: ${violations.length} violation${violations.length === 1 ? '' : 's'}`)
+    for (const v of violations) {
+      console.log(`    [${v.impact}] ${v.id}: ${v.help}`)
+      for (const node of v.nodes.slice(0, 3)) console.log(`        ${node.target.join(' ')}`)
+    }
   }
 }
 
